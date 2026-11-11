@@ -357,7 +357,10 @@ export class GameScene extends Phaser.Scene {
     const data = this.world.serialize();
     // a building that is being moved is saved where it was
     const m = this.pending?.moving;
-    if (m) data.buildings.push([this.pending.type, m.x, m.y, m.rot]);
+    if (m) {
+      const f = this.world.footprint(this.pending.type, m.rot);
+      data.buildings.push([this.pending.type, m.x, m.y, m.rot, f.w, f.d]);
+    }
     saveCity(this.city.id, data);
   }
 }

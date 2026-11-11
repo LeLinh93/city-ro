@@ -222,7 +222,8 @@ export class World {
       ground: this.painted ? this.ground.join('') : undefined,
       roads,
       trees: [...this.clearedTrees],
-      buildings: [...this.buildings.values()].map((b) => [b.type, b.x, b.y, b.rot]),
+      // [type, x, y, rot, w, d]: the size is kept so a building that got bigger in a new version can be dropped
+      buildings: [...this.buildings.values()].map((b) => [b.type, b.x, b.y, b.rot, b.w, b.d]),
     };
   }
 
@@ -247,7 +248,16 @@ export class World {
         w.roadCount++;
       }
     }
-    w.pendingBuildings = (data.buildings || []).filter((b) => BUILDINGS[b[0]]);
+    w.pendingBuildings = (data.buildings || []).filter((b) => w.stillFits(b));
     return w;
+  }
+
+  // Can a saved building [type, x, y, rot, w, d] still be loaded? Not if a new version of the game
+  // removed it or made it bigger. (Old saves have no size; those buildings are added if they fit.)
+  stillFits([type, , , rot, w, d]) {
+    if (!BUILDINGS[type]) return false;
+    if (w === undefined || d === undefined) return true;
+    const f = this.footprint(type, rot);
+    return f.w <= w && f.d <= d;
   }
 }
