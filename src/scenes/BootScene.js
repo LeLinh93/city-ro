@@ -21,7 +21,7 @@ function wrapLoader(L) {
 }
 
 // Turn a Pix into a Phaser texture, adding numbered frames for sprite sheets.
-function addPix(scene, key, pix, frameW = 0, frameH = 0) {
+export function addPix(scene, key, pix, frameW = 0, frameH = 0) {
   if (scene.textures.exists(key)) scene.textures.remove(key);
   const tex = scene.textures.createCanvas(key, pix.w, pix.h);
   const img = tex.context.createImageData(pix.w, pix.h);

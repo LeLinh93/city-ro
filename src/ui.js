@@ -134,6 +134,7 @@ export class UI {
       this.highlight(this.scene?.tool);
       return;
     }
+    this.scene?.cancelMove(); // a building that was being moved goes back where it was
     this.openMenu = key;
     this.sub.textContent = '';
     for (const def of items) {

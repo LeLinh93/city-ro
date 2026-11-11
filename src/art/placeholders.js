@@ -117,19 +117,38 @@ const SHORES = {
   curb: { wobble: 0, bands: [[0.03, 0xd6d7d9], [0.042, 0x9a9ca0]], spray: false },
 };
 
+export const SHORE_KINDS = Object.keys(SHORES);
+
 export function genShore(kind, part) {
-  const S = SHORES[kind];
+  return genShores([[kind, part]]);
+}
+
+// All the shore edges of one square in a single picture: parts is a list of [kind, part].
+// Each pixel takes its stripes from the nearest edge, so where two edges meet in a corner
+// the stripes join up instead of one edge painting over the other.
+export function genShores(parts) {
   const pix = new Pix(128, 64);
-  const last = S.bands[S.bands.length - 1][0];
   for (let py = 0; py < 64; py++) {
     for (let px = 0; px < 128; px++) {
       const [u, v] = tileUV(px, py);
       if (!inTile(u, v)) continue;
-      const [dist, along] = edgeDist(part, u, v);
-      const d = dist - S.wobble * Math.sin(along * Math.PI * 6) - (part.length === 1 ? 0.01 : 0);
-      const band = S.bands.find((b) => d < b[0]);
-      if (band) pix.set(px, py, band[1], band[2] ?? 255);
-      else if (S.spray && d < last + 0.05 && hash2(px, py, 5) < 0.25) pix.set(px, py, 0xffffff, 140);
+      let best = null;
+      let bestD = Infinity;
+      let spray = false;
+      for (const [kind, part] of parts) {
+        const S = SHORES[kind];
+        const [dist, along] = edgeDist(part, u, v);
+        const d = dist - S.wobble * Math.sin(along * Math.PI * 6) - (part.length === 1 ? 0.01 : 0);
+        const last = S.bands[S.bands.length - 1][0];
+        if (d < last && d < bestD) {
+          bestD = d;
+          best = S;
+        } else if (S.spray && d < last + 0.05) spray = true;
+      }
+      if (best) {
+        const band = best.bands.find((b) => bestD < b[0]);
+        pix.set(px, py, band[1], band[2] ?? 255);
+      } else if (spray && hash2(px, py, 5) < 0.25) pix.set(px, py, 0xffffff, 140);
     }
   }
   return pix;
