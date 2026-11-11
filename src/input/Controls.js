@@ -5,6 +5,9 @@ import { screenToWorld, scrollFor, toGrid } from '../iso.js';
 const MIN_ZOOM = ZOOM_STEPS[0];
 const MAX_ZOOM = ZOOM_STEPS[ZOOM_STEPS.length - 1];
 const CANCEL_MS = 220; // a second finger this soon after the first means "pinch", not "build"
+const TAP_MOVE = 10; // a Move-tool touch that moves less than this (CSS px) ...
+const TAP_MS = 500; // ... and lifts sooner than this is a tap
+const dpr = () => Math.min(window.devicePixelRatio || 1, 2);
 
 // Touch:  one finger = use the tool (drag the map with the Move tool),
 //         two fingers = pan and pinch-zoom.
@@ -51,7 +54,8 @@ export class Controls {
     }
     const tool = this.scene.tool;
     if (tool === 'hand') {
-      this.pan = { x: p.x, y: p.y };
+      // a drag moves the map; a quick tap that barely moves picks up a building
+      this.pan = { x: p.x, y: p.y, moved: 0, tap: true, t0: this.scene.time.now };
       return;
     }
     this.action = { tool, t0: this.scene.time.now, last: null, touch: p.wasTouch, pointer: p.id };
@@ -71,7 +75,9 @@ export class Controls {
       const z = this.cam.zoom;
       this.cam.scrollX -= (p.x - this.pan.x) / z;
       this.cam.scrollY -= (p.y - this.pan.y) / z;
-      this.pan = { x: p.x, y: p.y };
+      this.pan.moved += Math.hypot(p.x - this.pan.x, p.y - this.pan.y);
+      this.pan.x = p.x;
+      this.pan.y = p.y;
       return;
     }
     const sq = this.squareAt(p);
@@ -126,7 +132,11 @@ export class Controls {
       }
       if (this.touches.size === 0) this.blockTouch = false;
     }
+    const pan = this.pan;
     this.pan = null;
+    if (pan?.tap && pan.moved < TAP_MOVE * dpr() && this.scene.time.now - pan.t0 < TAP_MS) {
+      this.scene.handTap(this.squareAt(p));
+    }
     if (this.action && this.action.pointer === p.id) {
       this.scene.toolUp(this.squareAt(p), this.action);
       this.action = null;

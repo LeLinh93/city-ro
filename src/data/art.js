@@ -6,15 +6,12 @@ export const ART = {
   // How many numbered variants to look for (grass_0.png ... grass_3.png).
   // If you provide at least one file in a group, only your files are used.
   groundVariants: 4,
-  treeVariants: 6,
   personVariants: 5,
   carVariants: 4,
   planeVariants: 2,
 
   // Frame sizes for sprite sheets (columns = animation frames, rows = facings).
   water: { frameW: 128, frameH: 64 }, // water_N.png: frames side by side
-  tree: { frameW: 0, frameH: 0 }, // 0 = single image; set both for a sway strip (frames side by side)
-  treeFps: 3,
   person: { frameW: 32, frameH: 48 },
   car: { frameW: 64, frameH: 48 },
   plane: { frameW: 384, frameH: 256 },

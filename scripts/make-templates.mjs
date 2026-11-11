@@ -4,10 +4,9 @@ import { deflateSync } from 'node:zlib';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { encodePNG } from '../src/art/raster.js';
 import {
-  genGround, genEdge, genRoadCenter, genRoadArm, genTree, genBuilding, genAirportBase,
+  genGround, genEdge, genRoadCenter, genRoadArm,
   genPerson, genCar, genPlane, genPuff, genDust,
 } from '../src/art/placeholders.js';
-import { BUILDINGS } from '../src/data/buildings.js';
 
 const out = (path, pix) => {
   const dir = path.split('/').slice(0, -1).join('/');
@@ -17,7 +16,7 @@ const out = (path, pix) => {
 };
 
 for (let i = 0; i < 2; i++) {
-  out(`ground/grass_${i}.png`, genGround('grass', i));
+  out(`ground/grass_${i}.png`, genGround('grass', i)); // 0 = light, 1 = dark checkerboard square
   out(`ground/sand_${i}.png`, genGround('sand', i));
   out(`ground/water_${i}.png`, genGround('water', i, 4));
 }
@@ -27,11 +26,6 @@ for (const p of ['ne', 'se', 'sw', 'nw', 'n', 'e', 's', 'w']) {
 }
 out('roads/road_center.png', genRoadCenter());
 for (const s of ['ne', 'se', 'sw', 'nw']) out(`roads/road_arm_${s}.png`, genRoadArm(s));
-for (let i = 0; i < 4; i++) out(`trees/tree_${i}.png`, genTree(i));
-for (const def of Object.values(BUILDINGS)) {
-  out(`buildings/${def.image}.png`, genBuilding(def));
-  if (def.base) out(`buildings/${def.base}.png`, genAirportBase(def));
-}
 for (let i = 0; i < 2; i++) out(`people/person_${i}.png`, genPerson(i));
 out('vehicles/car_0.png', genCar(0));
 out('vehicles/police_car.png', genCar(0, true));

@@ -1,7 +1,8 @@
 import { GROUND } from '../constants.js';
 import { mulberry32, fbm } from '../rng.js';
 
-// Random island: water around the edge, beach ring, grass inside, forests on grass.
+// Random island: water around the edge, a beach ring and grass inside.
+// (tree / tjx / tjy are kept for old saves but stay empty: trees are now buildings you place.)
 export function generateMap(size, seed) {
   const n = size * size;
   const ground = new Uint8Array(n);
@@ -44,20 +45,6 @@ export function generateMap(size, seed) {
     }
   }
   for (const k of toSand) ground[k] = GROUND.SAND;
-
-  for (let j = 0; j < size; j++) {
-    for (let i = 0; i < size; i++) {
-      const k = j * size + i;
-      if (ground[k] !== GROUND.GRASS) continue;
-      const forest = fbm(i / 9 + 50, j / 9 + 50, seed + 7, 3);
-      const p = forest > 0.6 ? 0.75 : forest > 0.52 ? 0.3 : 0.04;
-      if (rnd() < p) {
-        tree[k] = 1 + Math.floor(rnd() * 250);
-        tjx[k] = Math.round((rnd() - 0.5) * 28);
-        tjy[k] = Math.round((rnd() - 0.5) * 12);
-      }
-    }
-  }
 
   return { ground, gvar, tree, tjx, tjy };
 }

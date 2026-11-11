@@ -1,8 +1,8 @@
 import Phaser from 'phaser';
 import { ART, roadTileName } from '../data/art.js';
-import { BUILDINGS } from '../data/buildings.js';
+import { THEMES, themeCatalog } from '../themes/catalog.js';
 import {
-  genGround, genEdge, genRoadCenter, genRoadArm, genTree, genBuilding, genAirportBase,
+  genGround, genEdge, genRoadCenter, genRoadArm,
   genPerson, genCar, genPlane, genPuff, genDust, genShadow,
 } from '../art/placeholders.js';
 
@@ -57,17 +57,9 @@ export class BootScene extends Phaser.Scene {
     L.image('road_center', `${BASE}roads/road_center.png`);
     for (const s of ['ne', 'se', 'sw', 'nw']) L.image(`road_arm_${s}`, `${BASE}roads/road_arm_${s}.png`);
     for (let m = 0; m < 16; m++) L.image(roadTileName(m), `${BASE}roads/${roadTileName(m)}.png`);
-    for (let i = 0; i < ART.treeVariants; i++) {
-      if (ART.tree.frameW) L.spritesheet(`tree_${i}`, `${BASE}trees/tree_${i}.png`, { frameWidth: ART.tree.frameW, frameHeight: ART.tree.frameH });
-      else L.image(`tree_${i}`, `${BASE}trees/tree_${i}.png`);
-    }
-    for (const def of Object.values(BUILDINGS)) {
-      L.image(`b_${def.image}`, `${BASE}buildings/${def.image}.png`);
-      L.image(`b_${def.image}_r`, `${BASE}buildings/${def.image}_r.png`);
-      if (def.base) {
-        L.image(`b_${def.base}`, `${BASE}buildings/${def.base}.png`);
-        L.image(`b_${def.base}_r`, `${BASE}buildings/${def.base}_r.png`);
-      }
+    // Every theme's buildings (assets/building-<theme>/<Menu>/<name>-<W>x<D>.png).
+    for (const id of Object.keys(THEMES)) {
+      for (const def of Object.values(themeCatalog(id).defs)) this.load.image(def.base || def.image, def.url);
     }
     const sheet = (key, path, f) => L.spritesheet(key, path, { frameWidth: f.frameW, frameHeight: f.frameH });
     for (let i = 0; i < ART.personVariants; i++) sheet(`person_${i}`, `${BASE}people/person_${i}.png`, ART.person);
@@ -99,16 +91,20 @@ export class BootScene extends Phaser.Scene {
       variants[name] = list;
     };
 
-    group('grass', 'grass', ART.groundVariants, (k, i) => addPix(this, k, genGround('grass', i)), 3);
+    group('grass', 'grass', ART.groundVariants, (k, i) => addPix(this, k, genGround('grass', i)), 2);
+    // Code-drawn grass is a checkerboard of a light and a dark square.
+    const checker = !has('grass_0') || this.textures.get('grass_0').source[0].image instanceof HTMLCanvasElement;
     group('sand', 'sand', ART.groundVariants, (k, i) => addPix(this, k, genGround('sand', i)), 3);
     group('water', 'water', ART.groundVariants, (k, i) => addPix(this, k, genGround('water', i, 4), 128, 64), 2);
-    group('tree', 'tree', ART.treeVariants, (k, i) => addPix(this, k, genTree(i)), 4);
     group('person', 'person', ART.personVariants, (k, i) => addPix(this, k, genPerson(i), 32, 48), 5);
     group('car', 'car', ART.carVariants, (k, i) => addPix(this, k, genCar(i), 64, 48), 4);
     group('plane', 'plane', ART.planeVariants, (k, i) => addPix(this, k, genPlane(i), 384, 256), 2);
 
     for (const p of EDGE_PARTS) {
-      if (!has(`edge_grass_${p}`)) addPix(this, `edge_grass_${p}`, genEdge('grass', p));
+      if (!has(`edge_grass_${p}`)) {
+        addPix(this, `edge_grass_${p}`, genEdge('grass', p, 0));
+        if (checker) addPix(this, `edge_grass_${p}_1`, genEdge('grass', p, 1));
+      }
       if (!has(`edge_foam_${p}`)) addPix(this, `edge_foam_${p}`, genEdge('foam', p));
     }
     if (!has('road_center')) addPix(this, 'road_center', genRoadCenter());
@@ -118,9 +114,8 @@ export class BootScene extends Phaser.Scene {
     if (!has('fx_dust')) addPix(this, 'fx_dust', genDust());
     addPix(this, 'fx_shadow', genShadow());
 
-    for (const def of Object.values(BUILDINGS)) {
-      if (!has(`b_${def.image}`)) addPix(this, `b_${def.image}`, genBuilding(def));
-      if (def.base && !has(`b_${def.base}`)) addPix(this, `b_${def.base}`, genAirportBase(def));
+    for (const id of Object.keys(THEMES)) {
+      for (const def of Object.values(themeCatalog(id).defs)) if (def.parts) this.cutParts(def);
     }
 
     // Full road tiles the player provided (optional).
@@ -129,6 +124,35 @@ export class BootScene extends Phaser.Scene {
 
     this.registry.set('variants', variants);
     this.registry.set('roadTiles', roadTiles);
-    this.scene.start('game');
+    this.registry.set('checkerGrass', checker);
+    this.game.events.emit('boot-done');
+  }
+
+  // For a mostly flat picture (the airport): keep only the parts that stand up, as a second texture.
+  cutParts(def) {
+    const src = this.textures.get(def.base).getSourceImage();
+    const W = def.w;
+    const D = def.d;
+    const H = src.height;
+    const P = (x, y, z) => [D * 64 + (x - y) * 64, H - (W + D) * 32 + (x + y) * 32 - z];
+    const c = document.createElement('canvas');
+    c.width = src.width;
+    c.height = H;
+    const ctx = c.getContext('2d');
+    ctx.drawImage(src, 0, 0);
+    ctx.globalCompositeOperation = 'destination-in';
+    ctx.beginPath();
+    for (const p of def.parts) {
+      const pts = [
+        P(p.x, p.y, p.h), P(p.x + p.w, p.y, p.h), P(p.x + p.w, p.y, 0),
+        P(p.x + p.w, p.y + p.d, 0), P(p.x, p.y + p.d, 0), P(p.x, p.y + p.d, p.h),
+      ];
+      ctx.moveTo(...pts[0]);
+      for (const q of pts.slice(1)) ctx.lineTo(...q);
+      ctx.closePath();
+    }
+    ctx.fill();
+    if (this.textures.exists(def.image)) this.textures.remove(def.image);
+    this.textures.addCanvas(def.image, c);
   }
 }

@@ -7,32 +7,36 @@ Anything missing keeps its code-drawn placeholder, so you can swap art in one fi
 name and size. Use those as img2img inputs or tracing guides. When a file is finished, copy it into the
 matching folder under `assets/`.
 
-## Converting big AI images: `npm run art`
+## Buildings: one folder per menu
 
-You can keep your art big and let the converter make the game files. For each image it:
-1. removes the plain background (flood fill from the edges),
-2. trims to the object,
-3. shrinks it to the exact game size by averaging pixels (thin lines survive),
-4. makes edges hard (no half-transparent pixels, no white halo),
-5. cuts buildings along their footprint's front edges and tiles to the exact diamond,
-6. reduces the colours (64 by default, no dithering).
+Buildings come in themes. The "city" theme reads every picture in `assets/building-city/`:
 
-**One image per file:** save it as `art-source/<folder>/<game name>.<png|webp|jpg>`. For example,
-`art-source/buildings/house.webp` becomes `assets/buildings/house.png` (128 px wide).
-
-**Several buildings in one sheet:** list them in `art-source/convert.json`. `crop` is `[x, y, width, height]`
-in the source image, with a little white space around the building:
-
-```json
-{
-  "jobs": [
-    { "from": "shops.webp", "crop": [0, 60, 512, 470], "to": "buildings/house.png" },
-    { "from": "shops.webp", "crop": [0, 530, 512, 494], "to": "buildings/longhouse.png", "outline": true }
-  ]
-}
+```
+assets/building-city/
+  House/house-1x1.png         -> a "House" button in the build bar, with a 1 x 1 "House" in its menu
+  House/apartment-2x1.png
+  Shop/cafe-1x1.png
+  Transport/airport-10x10.png
 ```
 
-Commands:
+- **Folder = build bar button.** Icons and order are set in `src/themes/city.js` (`menus`); a new folder
+  gets a 📦 icon until you add it there.
+- **File name = `<name>-<W>x<D>.png`.** `W` runs down-right on screen and `D` runs down-left. The name shown in
+  the game comes from `names` in `src/themes/city.js`, or from the file name.
+- **Image width = (W + D) × 64 px, exactly**, any height. The footprint's bottom corner touches the bottom edge,
+  and its left and right corners touch the left and right edges. `npm run art` makes this for you (below).
+- **🔄 mirrors the picture**, so a 2 × 1 building turned becomes 1 × 2.
+- Doors default to the middle of the down-left face. Special cases (the police garage, the airport's runway,
+  parking spots and terminals) are in `buildings` in `src/themes/city.js`.
+
+### Making the game files: `npm run art`
+
+Draw big (for example 512 px per 1 × 1 square) with a transparent background, and save it under the same name in
+`art-source/`:
+
+```
+art-source/building-city/House/house-1x1.png  ->  assets/building-city/House/house-1x1.png (128 px wide)
+```
 
 ```bash
 npm run art
@@ -43,19 +47,37 @@ npm run art -- --preview
 ```
 
 ```bash
-npm run art -- house
+npm run art -- skyscraper
 ```
 
 The first converts everything. The second also writes 4× zoomed copies to `art-preview/` for checking.
-The third only converts outputs whose name contains "house".
+The third only converts files whose name contains "skyscraper".
 
-Options per job: `fuzz` (background tolerance in %, default 12: raise it if a white fringe stays,
-lower it if light parts of the building disappear), `colors` (default 64), `outline` (darken the outer
-edge), `alphaCut` (0–1, default 0.5), `clip: false` (don't cut along the footprint), `footprint: [W, D]`,
+For each building it scales the whole picture to (W + D) × 64 px wide using the size in the file name (a 512 px
+wide 1 × 1 picture is shrunk exactly 4 ×, averaging 4 × 4 pixels into one), keeps the bottom edge in place, makes
+the edges hard (no half-transparent pixels), cuts off anything below the footprint's front edges, and reduces the
+colours to 64. It warns when the picture's shape doesn't match the size in the name.
+
+### Other images
+
+The converter also makes ground, road, people and vehicle files: save the big picture as
+`art-source/<folder>/<game name>.png` (for example `art-source/ground/sand_0.png`). For those it first removes a
+plain background and trims the picture. To cut several pictures out of one sheet, list them in
+`art-source/convert.json`:
+
+```json
+{ "jobs": [ { "from": "tiles.webp", "crop": [0, 0, 512, 256], "to": "ground/sand_0.png" } ] }
+```
+
+Options per job: `fuzz` (background tolerance in %, default 12), `colors` (default 64, 0 = keep all), `outline`
+(darken the outer edge), `alphaCut` (0–1, default 0.5), `clip: false` (don't cut along the footprint / tile),
 `width` / `height`.
 
-The converter warns when a building's shape doesn't match its footprint in `src/data/buildings.js`.
-For example, a building whose long side runs down-left would be 1 × 2, not 2 × 1.
+## Menu picture
+
+Put the start screen picture in `assets/ui/menu.png` (or `.jpg` / `.webp`). It fills the screen from the top,
+so keep the title near the top; the ＋ button and the city list sit about a third of the way down. Without the
+file the menu shows a plain "City Builder" title.
 
 ## Rules for every image
 
@@ -74,9 +96,12 @@ Corners: `n` = top, `e` = right, `s` = bottom, `w` = left.
 
 ## Ground (`assets/ground/`)
 
+Grass, sand, water and roads are drawn by code (grass is a light and dark checkerboard). You only need these
+files if you want to replace that look.
+
 | File | Size | Notes |
 |---|---|---|
-| `grass_0.png` … `grass_3.png` | 128 × 64 | Variants are mixed randomly. 1–4 files. |
+| `grass_0.png` … `grass_3.png` | 128 × 64 | Variants are mixed randomly. 1–4 files. (Replaces the checkerboard.) |
 | `sand_0.png` … `sand_3.png` | 128 × 64 | |
 | `water_0.png` … `water_3.png` | 128·N × 64 | N animation frames side by side (e.g. 4 frames = 512 × 64). |
 | `edge_grass_ne/se/sw/nw.png` | 128 × 64 | Grass spilling onto a sand square from that side. |
@@ -102,47 +127,6 @@ order `ne, se, sw, nw`:
 `road_se-sw`, `road_se-nw`, `road_sw-nw`, `road_ne-se-sw`, `road_ne-se-nw`, `road_ne-sw-nw`,
 `road_se-sw-nw`, `road_ne-se-sw-nw`.
 Any full tile you provide wins over the kit for that shape.
-
-## Trees (`assets/trees/`)
-
-`tree_0.png` … `tree_5.png`: about 64–128 px wide, any height. The **bottom-centre pixel** is where the tree
-touches the ground. To make trees sway, draw the frames side by side and set `tree.frameW` / `tree.frameH`
-in `src/data/art.js`.
-
-## Buildings (`assets/buildings/`)
-
-For a building that covers **W × D squares**:
-
-- **Image width = (W + D) × 64 px, exactly.**
-- Any height. The **bottom corner of the footprint touches the bottom edge** of the image, and the left
-  and right corners touch the left and right edges.
-- `W` runs down-right on screen and `D` runs down-left.
-
-| Building | File | Footprint | Width | Placeholder height |
-|---|---|---|---|---|
-| House | `house.png` | 1 × 1 | 128 | 132 |
-| Long house | `longhouse.png` | 2 × 1 (long side down-right) | 192 | 160 |
-| Skyscraper | `skyscraper.png` | 4 × 4 | 512 | 744 |
-| Police | `police.png` | 4 × 4 | 512 | 356 |
-| Airport (buildings) | `airport.png` | 10 × 10 | 1280 | 826 |
-| Airport (ground) | `airport_base.png` | 10 × 10 | 1280 | 640 (flat) |
-
-**Rotation.** By default a rotated building is the same picture mirrored. Add `<name>_r.png`
-(for example `longhouse_r.png`) to give the rotated version its own art. Draw it for the rotated footprint (D × W).
-
-**Doors, garages, chimneys.** People walk into the door square, police cars use the garage, and smoke
-comes out of chimneys. These positions live in `src/data/buildings.js` in squares (x, y) and height in
-pixels (z). If your art puts the door somewhere else, change the numbers there. Current placeholders:
-
-- House: door on the down-left face; chimney at x 0.33, y 0.33, top 62 px up.
-- Long house: door on the long down-left face, second square; chimney at x 0.38, y 0.5, top 58 px up
-  (move or delete the `smoke` entry if your building has no chimney).
-- Skyscraper and police: door on the down-left face, second square from the left. Police garage is on the
-  down-right face, third square.
-- Airport (squares counted in the airport's own 10 × 10 grid; x runs down-right, y runs down-left):
-  runway on rows y 8–9 (the front-left edge), taxiway centred on y 7, apron x 2.6–10 and y 3–6.5,
-  plane parking spots at (3.9, 4.6), (6.3, 4.6), (8.7, 4.6), terminal on x 3–9, y 0–2, door on the
-  down-right face at square (9, 1). The easiest way to match it is to paint over `templates/buildings/airport_base.png`.
 
 ## People (`assets/people/`)
 

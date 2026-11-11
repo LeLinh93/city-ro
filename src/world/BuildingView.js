@@ -1,12 +1,11 @@
 import { DEPTH, HW } from '../constants.js';
 import { toWorld } from '../iso.js';
 
-// Which texture to use and whether to mirror it.
+// Which texture to use and whether to mirror it. Turning a building mirrors its picture.
 export function buildingTexture(scene, def, rot, which = 'image') {
-  const name = def[which];
-  if (!name) return null;
-  if (rot && scene.textures.exists(`b_${name}_r`)) return { key: `b_${name}_r`, flip: false };
-  return { key: `b_${name}`, flip: !!rot };
+  const key = def[which];
+  if (!key) return null;
+  return { key, flip: !!rot };
 }
 
 // Screen placement of a footprint: the image's bottom edge touches the
@@ -17,19 +16,18 @@ export function footprintPlacement(x, y, w, d) {
 }
 
 // Front-most square in each 64 px column of the footprint decides that column's draw order.
+// (def.solid: optional list of rectangles that stand up; default the whole footprint.)
 function columnDepths(b, place) {
-  const s = b.def.solid;
-  let rect;
-  if (!s) rect = { x: b.x, y: b.y, w: b.w, d: b.d };
-  else if (b.rot) rect = { x: b.x + s.y, y: b.y + s.x, w: s.d, d: s.w };
-  else rect = { x: b.x + s.x, y: b.y + s.y, w: s.w, d: s.d };
+  const rects = (b.def.solid || [{ x: 0, y: 0, w: b.def.w, d: b.def.d }]).map((s) => (b.rot
+    ? { x: b.x + s.y, y: b.y + s.x, w: s.d, d: s.w }
+    : { x: b.x + s.x, y: b.y + s.y, w: s.w, d: s.d }));
   const n = b.w + b.d;
   const out = [];
   for (let c = 0; c < n; c++) {
     const c0 = place.left + c * HW;
     const c1 = c0 + HW;
     let best = null;
-    for (let j = rect.y; j < rect.y + rect.d; j++) {
+    for (const rect of rects) for (let j = rect.y; j < rect.y + rect.d; j++) {
       for (let i = rect.x; i < rect.x + rect.w; i++) {
         const t0 = (i - j - 1) * HW;
         const t1 = (i - j + 1) * HW;

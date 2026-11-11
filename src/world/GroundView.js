@@ -1,7 +1,7 @@
 import { DEPTH, GROUND, GROUND_NAMES, HW, HH, SIDES, SIDE_LIST } from '../constants.js';
 import { toGrid, viewRect } from '../iso.js';
 
-// Draws only the squares that are on screen (ground, shore edges, roads, trees),
+// Draws only the squares that are on screen (ground, shore edges, roads),
 // reusing a pool of images. A 100 x 100 map would otherwise be ~15,000 images.
 const CORNERS = [
   { name: 'n', di: -1, dj: -1, a: 'nw', b: 'ne' },
@@ -17,7 +17,6 @@ export class GroundView {
     this.pool = [];
     this.used = 0;
     this.water = [];
-    this.trees = [];
     this.waterFrame = 0;
     this.last = '';
     this.lastVersion = -1;
@@ -26,7 +25,7 @@ export class GroundView {
     this.variants = reg.get('variants');
     this.roadTiles = reg.get('roadTiles');
     this.waterFrames = this.variants.water.map((k) => Math.max(1, scene.textures.get(k).frameTotal - 1));
-    this.treeFrames = this.variants.tree.map((k) => Math.max(1, scene.textures.get(k).frameTotal - 1));
+    this.checker = reg.get('checkerGrass');
     world.on('road-added', (i, j) => this.roadAnims.set(world.idx(i, j), scene.time.now));
   }
 
@@ -43,6 +42,11 @@ export class GroundView {
     return im;
   }
 
+  // Grass fringe matching the checkerboard colour of the grass square it comes from.
+  edgeKey(kind, part, dark) {
+    return kind === 'grass' && dark && this.checker ? `edge_grass_${part}_1` : `edge_${kind}_${part}`;
+  }
+
   rank(i, j) {
     const w = this.world;
     if (!w.inBounds(i, j)) return 0;
@@ -51,12 +55,11 @@ export class GroundView {
 
   update(time) {
     const cam = this.scene.cameras.main;
-    // animate water and trees without a full redraw
+    // animate water without a full redraw
     const wf = Math.floor(time / 280);
     if (wf !== this.waterFrame) {
       this.waterFrame = wf;
       for (const { im, n } of this.water) im.setFrame(wf % n);
-      for (const t of this.trees) if (t.n > 1) t.im.setFrame((Math.floor(time / 330) + t.phase) % t.n);
     }
 
     let animating = false;
@@ -79,7 +82,7 @@ export class GroundView {
     const L = v.x - HW * 2;
     const R = v.x + v.w + HW * 2;
     const T = v.y - HH * 4;
-    const B = v.y + v.h + 300; // trees below the screen can still poke up into view
+    const B = v.y + v.h + HH * 2;
     const pts = [toGrid(L, T), toGrid(R, T), toGrid(L, B), toGrid(R, B)];
     const i0 = Math.max(0, Math.floor(Math.min(...pts.map((p) => p.fx))));
     const i1 = Math.min(N - 1, Math.ceil(Math.max(...pts.map((p) => p.fx))));
@@ -88,7 +91,6 @@ export class GroundView {
 
     this.used = 0;
     this.water.length = 0;
-    this.trees.length = 0;
     const V = this.variants;
 
     for (let j = j0; j <= j1; j++) {
@@ -98,12 +100,10 @@ export class GroundView {
         if (cx < L || cx > R || cy < T || cy > B) continue;
         const k = j * N + i;
         const g = w.ground[k];
-        const onScreen = cy < v.y + v.h + HH * 2;
-
-        if (onScreen) {
+        {
           // ground
           const list = V[GROUND_NAMES[g]];
-          const gi = w.gvar[k] % list.length;
+          const gi = g === GROUND.GRASS && this.checker ? (i + j) & 1 : w.gvar[k] % list.length;
           const base = this.img(list[gi], g === GROUND.WATER ? this.waterFrame % this.waterFrames[gi] : undefined);
           base.setPosition(cx, cy).setDepth(DEPTH.GROUND);
           if (g === GROUND.WATER) this.water.push({ im: base, n: this.waterFrames[gi] });
@@ -115,11 +115,11 @@ export class GroundView {
             for (const s of SIDE_LIST) {
               const d = SIDES[s];
               higher[s] = this.rank(i + d.dx, j + d.dy) > g;
-              if (higher[s]) this.img(`edge_${kind}_${s}`).setPosition(cx, cy).setDepth(DEPTH.EDGE);
+              if (higher[s]) this.img(this.edgeKey(kind, s, (i + j + 1) & 1)).setPosition(cx, cy).setDepth(DEPTH.EDGE);
             }
             for (const c of CORNERS) {
               if (!higher[c.a] && !higher[c.b] && this.rank(i + c.di, j + c.dj) > g) {
-                this.img(`edge_${kind}_${c.name}`).setPosition(cx, cy).setDepth(DEPTH.EDGE);
+                this.img(this.edgeKey(kind, c.name, (i + j) & 1)).setPosition(cx, cy).setDepth(DEPTH.EDGE);
               }
             }
           }
@@ -147,18 +147,6 @@ export class GroundView {
               }
             }
           }
-        }
-
-        // trees stand on the map and sort with people and buildings
-        const t = w.tree[k];
-        if (t) {
-          const ti = t % V.tree.length;
-          const n = this.treeFrames[ti];
-          const phase = k % 7;
-          const im = this.img(V.tree[ti], n > 1 ? (this.waterFrame + phase) % n : undefined);
-          im.setOrigin(0.5, 1).setPosition(cx + w.tjx[k], cy + w.tjy[k]).setDepth(i + j + 1 + w.tjy[k] / HH);
-          if ((k * 7) % 3 === 0) im.setFlipX(true);
-          this.trees.push({ im, n, phase });
         }
       }
     }

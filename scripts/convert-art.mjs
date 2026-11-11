@@ -5,23 +5,26 @@
 //   npm run art -- --out <dir>  write somewhere else instead of assets/
 //   npm run art -- house        only jobs whose output name contains "house"
 //
-// Two ways to say what to convert:
-//  1. By name: art-source/buildings/house.webp -> assets/buildings/house.png
+// Three ways to say what to convert:
+//  1. Theme buildings: art-source/building-<theme>/<Menu>/<name>-<W>x<D>.png
+//     -> assets/building-<theme>/<Menu>/<name>-<W>x<D>.png, scaled so the image is (W+D)*64 px wide.
+//     The background must already be transparent; the canvas is kept as it is (no trim).
+//  2. By name: art-source/ground/grass_0.webp -> assets/ground/grass_0.png
 //     (same folder + name as the game file; any of .png .webp .jpg).
-//  2. A job list in art-source/convert.json, e.g. to cut several buildings out of one sheet:
-//     { "jobs": [ { "from": "shops.webp", "crop": [0, 0, 512, 512], "to": "buildings/house.png" } ] }
+//  3. A job list in art-source/convert.json, e.g. to cut several tiles out of one sheet:
+//     { "jobs": [ { "from": "tiles.webp", "crop": [0, 0, 512, 256], "to": "ground/grass_0.png" } ] }
 //
 // Steps: remove plain background -> trim -> area-average shrink to the exact size
 //        -> hard alpha edges -> clip to the footprint / tile diamond -> reduce colours.
+// Theme buildings skip the first two steps.
 //
 // Job options (all optional): crop [x,y,w,h], width, height, footprint [W,D],
 //   fuzz (background tolerance %, default 12), alphaCut (0..1, default 0.5),
-//   colors (default 64), outline (true = darken the outer edge pixels), clip (false = keep everything),
+//   colors (default 64, 0 = keep all), outline (true = darken the outer edge pixels), clip (false = keep everything),
 //   trim (false = keep the canvas as it is).
 import sharp from 'sharp';
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, extname, join, relative } from 'node:path';
-import { BUILDINGS } from '../src/data/buildings.js';
 
 const EXTS = new Set(['.png', '.webp', '.jpg', '.jpeg']);
 
@@ -41,24 +44,21 @@ for (let k = 0; k < args.length; k++) {
 
 // ---------- what size each game file must be ----------
 
-function buildingFor(name) {
-  const rotated = name.endsWith('_r');
-  const base = rotated ? name.slice(0, -2) : name;
-  for (const def of Object.values(BUILDINGS)) {
-    if (def.image === base) return { def, rotated, flat: false };
-    if (def.base === base) return { def, rotated, flat: true };
-  }
-  return null;
-}
+// building-<theme>/<Menu>/<name>-<W>x<D>.png
+export const THEME_FILE = /^building-[^/]+\/[^/]+\/[^/]+-(\d+)x(\d+)\.(png|webp|jpe?g)$/i;
 
 function targetFor(to, job) {
+  const theme = to.match(THEME_FILE);
+  if (theme) {
+    const [W, D] = job.footprint || [Number(theme[1]), Number(theme[2])];
+    return { width: (W + D) * 64, trim: false, keepBackground: true, clip: 'footprint', W, D };
+  }
   const [folder, file] = to.split('/');
   const name = file.replace(/\.png$/, '');
   if (folder === 'buildings') {
-    const b = buildingFor(name);
-    if (!b && !job.footprint) throw new Error(`${to}: no building uses this name (add "footprint": [W, D] to the job)`);
-    let [W, D] = job.footprint || (b.rotated ? [b.def.d, b.def.w] : [b.def.w, b.def.d]);
-    return { width: (W + D) * 64, height: b?.flat ? (W + D) * 32 : null, trim: true, clip: 'footprint', W, D };
+    if (!job.footprint) throw new Error(`${to}: buildings now live in building-<theme>/<Menu>/<name>-<W>x<D>.png`);
+    const [W, D] = job.footprint;
+    return { width: (W + D) * 64, trim: true, clip: 'footprint', W, D };
   }
   if (folder === 'ground' && /^water_/.test(name)) return { tile: true, frames: 'auto', trim: false, clip: 'diamond' };
   if (folder === 'ground' && /^edge_/.test(name)) return { width: 128, height: 64, trim: false, clip: 'diamond' };
@@ -206,6 +206,12 @@ function boxResize(p, tw, th) {
   return out;
 }
 
+function padTop(p, rows) {
+  const out = img(p.w, p.h + rows);
+  out.d.set(p.d, rows * p.w * 4);
+  return out;
+}
+
 function hardAlpha(p, cut) {
   for (let i = 3; i < p.d.length; i += 4) p.d[i] = p.d[i] >= cut * 255 ? 255 : 0;
 }
@@ -330,7 +336,7 @@ function checkFootprint(p, W, D, label) {
   if (Math.abs(seen - want) > 0.12) {
     const guessW = Math.max(1, Math.round(seen * (W + D)));
     console.warn(`  ! ${label}: the bottom corner is at ${Math.round(seen * 100)}% of the width, but a ${W}x${D} footprint puts it at ${Math.round(want * 100)}%.`);
-    console.warn(`    The art looks like a ${guessW}x${W + D - guessW} building. Fix the footprint in src/data/buildings.js or add "footprint" to the job.`);
+    console.warn(`    The art looks like a ${guessW}x${W + D - guessW} building. Fix the size in the file name.`);
   }
 }
 
@@ -354,6 +360,10 @@ function collectJobs() {
       else if (EXTS.has(extname(f).toLowerCase())) {
         const rel = relative(SRC, full).replace(/\\/g, '/');
         if (used.has(rel) || !rel.includes('/')) continue; // sheets used by jobs, or loose files in the root
+        if (/^building-/i.test(rel) && !THEME_FILE.test(rel)) {
+          console.warn(`  ! skipped ${rel}: put it in a menu folder and name it <name>-<W>x<D>, e.g. House/house-1x1.png`);
+          continue;
+        }
         jobs.push({ from: rel, to: rel.replace(/\.[^.]+$/, '.png') });
       }
     }
@@ -372,11 +382,17 @@ async function run(job) {
   const { data, info } = await pipe.ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   let p = { w: info.width, h: info.height, d: new Uint8ClampedArray(data) };
 
-  removeBackground(p, job.fuzz ?? 12);
+  if (!t.keepBackground) removeBackground(p, job.fuzz ?? 12);
   if (job.trim ?? t.trim) p = trim(p);
 
   let tw = job.width ?? t.width;
   let th = job.height ?? t.height;
+  if (!th && !t.frames) {
+    // Keep the bottom edge where it is. If the shrink is a whole number (e.g. 512 -> 128 is 4x),
+    // add transparent rows on top so every game pixel averages exactly 4x4 source pixels.
+    const f = p.w / tw;
+    if (Math.abs(f - Math.round(f)) < 1e-6 && p.h % Math.round(f)) p = padTop(p, Math.round(f) - (p.h % Math.round(f)));
+  }
   if (t.frames === 'auto') {
     const frames = Math.max(1, Math.round(p.w / p.h / 2));
     tw = 128 * frames;

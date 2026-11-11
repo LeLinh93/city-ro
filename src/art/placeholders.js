@@ -1,11 +1,24 @@
 // Code-drawn stand-in art. Each function returns a Pix following the same
 // size rules as the real art described in ASSETS.md.
-import { Pix, shade, frac, tileUV, pixelToGrid, drawBox } from './raster.js';
+import { Pix, shade, frac, tileUV, drawBox } from './raster.js';
 import { hash2 } from '../rng.js';
 
 const inTile = (u, v) => u >= 0 && u < 1 && v >= 0 && v < 1;
 
 // ---------- ground ----------
+
+// Colours of the code-drawn ground and roads (bright, flat, like the city art).
+export const COLORS = {
+  grass: [0x80cb5d, 0x73bf51], // light and dark squares of the checkerboard
+  grassRim: 0x62ab45,
+  sand: 0xf1dfa4,
+  water: 0x45a3e0,
+  foam: 0xe4f5fc,
+  asphalt: 0x47494e,
+  curb: 0xc8ccd1,
+  curbLine: 0x8d949b,
+  dash: 0xf5f5f0,
+};
 
 export function genGround(type, variant, frames = 1) {
   const pix = new Pix(128 * frames, 64);
@@ -17,20 +30,17 @@ export function genGround(type, variant, frames = 1) {
         const h = hash2(px, py, variant * 31 + 7);
         let c;
         if (type === 'grass') {
-          c = 0x5d9e4b;
-          if (h < 0.09) c = 0x4f8a40;
-          else if (h > 0.94) c = 0x72b25a;
-          if (h > 0.9985) c = variant % 2 ? 0xf4e36b : 0xf2f2f2;
+          c = COLORS.grass[variant % 2];
         } else if (type === 'sand') {
-          c = 0xe2cf96;
-          if (h < 0.1) c = 0xd4be82;
-          else if (h > 0.93) c = 0xefe2b4;
+          c = COLORS.sand;
+          if (h < 0.07) c = 0xe5d091;
+          else if (h > 0.95) c = 0xf8eecb;
         } else {
-          c = 0x2f6fb8;
-          if (h < 0.12) c = 0x2b66aa;
+          c = COLORS.water;
+          if (h < 0.1) c = 0x3f9bd8;
           // moving wave dashes
           const wave = hash2(Math.floor((px + f * 4 + py * 2) / 6), py, variant + 99);
-          if (py % 4 === 1 && wave < 0.12) c = 0x5e98d6;
+          if (py % 4 === 1 && wave < 0.12) c = 0x82c6f0;
         }
         pix.set(f * 128 + px, py, c);
       }
@@ -40,11 +50,11 @@ export function genGround(type, variant, frames = 1) {
 }
 
 // Shore overlays. kind: 'grass' (grass fringe over sand) or 'foam' (foam over water).
-// part: side ne/se/sw/nw or corner n/e/s/w.
-export function genEdge(kind, part) {
+// part: side ne/se/sw/nw or corner n/e/s/w. variant: which checkerboard grass colour.
+export function genEdge(kind, part, variant = 0) {
   const pix = new Pix(128, 64);
-  const main = kind === 'grass' ? 0x5d9e4b : 0xd5ecf4;
-  const rim = kind === 'grass' ? 0x467f37 : 0xffffff;
+  const main = kind === 'grass' ? COLORS.grass[variant % 2] : COLORS.foam;
+  const rim = kind === 'grass' ? COLORS.grassRim : 0xffffff;
   const alpha = kind === 'grass' ? 255 : 200;
   for (let py = 0; py < 64; py++) {
     for (let px = 0; px < 128; px++) {
@@ -73,27 +83,19 @@ export function genEdge(kind, part) {
 
 // ---------- roads ----------
 
-const SIDEWALK = 0.13;
-const ASPHALT = 0x45484e;
+// Asphalt with a light grey curb along the edges and a white dashed centre line.
+// A road square is the centre piece plus one "arm" for each neighbouring road.
+const CURB = 0.075;
 
 export function genRoadCenter() {
   const pix = new Pix(128, 64);
-  const a = SIDEWALK;
+  const a = CURB;
   for (let py = 0; py < 64; py++) {
     for (let px = 0; px < 128; px++) {
       const [u, v] = tileUV(px, py);
       if (!inTile(u, v)) continue;
-      const inner = u >= a && u < 1 - a && v >= a && v < 1 - a;
-      let c;
-      if (inner) {
-        c = hash2(px, py, 3) < 0.08 ? 0x4c5056 : ASPHALT;
-        const e = Math.min(u - a, 1 - a - u, v - a, 1 - a - v);
-        if (e < 0.012) c = 0x8d877c; // curb
-      } else {
-        c = 0xbab5aa;
-        if (frac(u * 8) < 0.04 || frac(v * 8) < 0.04) c = 0xa8a397;
-      }
-      pix.set(px, py, c);
+      const e = Math.min(u - a, 1 - a - u, v - a, 1 - a - v);
+      pix.set(px, py, e >= 0.012 ? COLORS.asphalt : e >= 0 ? COLORS.curbLine : COLORS.curb);
     }
   }
   return pix;
@@ -101,7 +103,7 @@ export function genRoadCenter() {
 
 export function genRoadArm(side) {
   const pix = new Pix(128, 64);
-  const a = SIDEWALK;
+  const a = CURB;
   for (let py = 0; py < 64; py++) {
     for (let px = 0; px < 128; px++) {
       const [u, v] = tileUV(px, py);
@@ -116,171 +118,9 @@ export function genRoadArm(side) {
         default: along = 0.5 - u; across = v; break; // nw
       }
       if (along < 0) continue;
-      const inArm = along >= 0.5 - a && across >= a && across < 1 - a;
-      const onLine = Math.abs(across - 0.5) < 0.016 && frac((side === 'ne' || side === 'sw' ? v : u) * 4) < 0.5;
-      if (onLine && along > 0.04) pix.set(px, py, 0xf0eee0);
-      else if (inArm) pix.set(px, py, hash2(px, py, 3) < 0.08 ? 0x4c5056 : ASPHALT);
-    }
-  }
-  return pix;
-}
-
-// ---------- trees ----------
-
-export function genTree(variant) {
-  const w = 96;
-  const h = 128;
-  const pix = new Pix(w, h);
-  const cx = w / 2;
-  // shadow
-  for (let y = h - 12; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const dx = (x + 0.5 - cx) / 24;
-      const dy = (y + 0.5 - (h - 6)) / 6;
-      if (dx * dx + dy * dy < 1) pix.set(x, y, 0x1d3a1a, 70);
-    }
-  }
-  const kind = variant % 4;
-  const trunkH = kind === 3 ? 10 : 22;
-  pix.rect(cx - 3, h - 6 - trunkH, 6, trunkH, 0x6b4a2f);
-  pix.rect(cx + 1, h - 6 - trunkH, 2, trunkH, 0x553a24);
-  const greens = [
-    [0x3f8a3a, 0x5aa84a, 0x2f6b2c],
-    [0x4a9640, 0x6cbc55, 0x356f2e],
-    [0x2f6e44, 0x45905a, 0x234f32],
-    [0x5c9c3e, 0x7cbf58, 0x44782e],
-  ][kind];
-  const blob = (bx, by, r) => {
-    for (let y = Math.floor(by - r); y <= by + r; y++) {
-      for (let x = Math.floor(bx - r); x <= bx + r; x++) {
-        const dx = x + 0.5 - bx;
-        const dy = y + 0.5 - by;
-        const d = Math.hypot(dx, dy) / r;
-        if (d > 1) continue;
-        const light = (-dx - dy) / r; // light from top-left
-        let c = greens[0];
-        if (light > 0.35) c = greens[1];
-        else if (light < -0.45) c = greens[2];
-        if (hash2(x, y, variant) < 0.08) c = light > 0 ? greens[1] : greens[2];
-        pix.set(x, y, c);
-      }
-    }
-  };
-  if (kind === 2) {
-    // pine: stacked layers
-    for (let layer = 0; layer < 4; layer++) {
-      const top = h - 6 - trunkH - 70 + layer * 16;
-      const half = 10 + layer * 6;
-      for (let y = top; y < top + 22; y++) {
-        const t = (y - top) / 22;
-        const hw = half * t + 2;
-        for (let x = Math.floor(cx - hw); x <= cx + hw; x++) {
-          const side = (x - cx) / hw;
-          let c = side < -0.2 ? greens[1] : side > 0.45 ? greens[2] : greens[0];
-          if (hash2(x, y, 9) < 0.06) c = greens[2];
-          pix.set(x, y, c);
-        }
-      }
-    }
-  } else if (kind === 3) {
-    blob(cx, h - 26, 16);
-    blob(cx - 8, h - 32, 10);
-  } else {
-    const top = h - 6 - trunkH;
-    blob(cx, top - 18, 22);
-    blob(cx - 14, top - 8, 14);
-    blob(cx + 14, top - 6, 14);
-    blob(cx - 4, top - 34, 15);
-  }
-  return pix;
-}
-
-// ---------- buildings ----------
-
-function windowPattern(box, marks) {
-  const w = box.windows;
-  return (face, a, b) => {
-    for (const m of marks) {
-      if (m.face === face && m.box === box && a >= m.a0 && a < m.a1 && b >= m.z0 && b < m.z1) return m.color(a, b);
-    }
-    if (face === 'T') return null;
-    if (box.stripe && b >= box.stripe.z0 && b < box.stripe.z1) return box.stripe.color;
-    if (!w) return null;
-    const rel = b - box.z0 - w.start;
-    if (rel < 0 || b > box.z1 - 5) return null;
-    if (rel % w.floor >= w.h) return null;
-    const fa = frac(a * w.per);
-    if (fa < 0.28 || fa > 0.72) return null;
-    const lit = hash2(Math.floor(a * w.per), Math.floor(rel / w.floor), face === 'L' ? 1 : 2) < (w.lit ?? 0.15);
-    return lit ? 0xffe39a : (w.color ?? 0x5d8fb8);
-  };
-}
-
-function doorMarks(def, body) {
-  const marks = [];
-  const add = (spot, wide, height, color) => {
-    if (!spot) return;
-    const lo = wide ? 0.15 : 0.36;
-    const hi = wide ? 0.85 : 0.64;
-    if (spot.side === 'sw') marks.push({ face: 'L', box: body, a0: spot.x + lo, a1: spot.x + hi, z0: 0, z1: height, color });
-    if (spot.side === 'se') marks.push({ face: 'R', box: body, a0: spot.y + lo, a1: spot.y + hi, z0: 0, z1: height, color });
-  };
-  add(def.door, false, 20, () => 0x5a3a26);
-  add(def.garage, true, 28, (a, z) => (Math.floor(z) % 5 === 0 ? 0x3c424a : 0x6a727c));
-  return marks;
-}
-
-// Image layout shared by the game and the placeholder art.
-export function buildingImageLayout(w, d, topPad) {
-  return { width: (w + d) * 64, height: (w + d) * 32 + topPad, ox: d * 64, oy: topPad };
-}
-
-export function genBuilding(def) {
-  const boxes = def.placeholder.boxes;
-  const topPad = Math.max(...boxes.map((b) => b.z1)) + 8;
-  const L = buildingImageLayout(def.w, def.d, topPad);
-  const pix = new Pix(L.width, L.height);
-  const body = boxes[0];
-  const marks = doorMarks(def, body);
-  for (const b of boxes) drawBox(pix, { ...b, pattern: windowPattern(b, marks) }, L.ox, L.oy);
-  return pix;
-}
-
-// Flat ground image for the airport (runway, taxiway, apron).
-export function genAirportBase(def) {
-  const A = def.airport;
-  const L = buildingImageLayout(def.w, def.d, 0);
-  const pix = new Pix(L.width, L.height);
-  for (let py = 0; py < L.height; py++) {
-    for (let px = 0; px < L.width; px++) {
-      const [x, y] = pixelToGrid(px, py, L.ox, L.oy);
-      if (x < 0 || y < 0 || x >= def.w || y >= def.d) continue;
-      const h = hash2(px, py, 77);
-      let c = h < 0.1 ? 0x4f8a40 : 0x5d9e4b; // grass
-      const s = def.solid;
-      if (y >= A.runway.y0 && y < A.runway.y1) {
-        c = h < 0.06 ? 0x44474d : 0x3c3f45;
-        if (Math.abs(y - A.runway.centerY) < 0.025 && frac(x * 1.25) < 0.5) c = 0xf4f4f4;
-        if (y - A.runway.y0 < 0.06 || A.runway.y1 - y < 0.06) c = 0xf4f4f4;
-        if ((x < 0.45 || x > def.w - 0.45) && frac(y * 7) < 0.45 && Math.abs(y - A.runway.centerY) < 0.8) c = 0xf4f4f4;
-      } else if (y >= A.taxiway.y0 && y < A.taxiway.y1) {
-        c = 0x4a4d52;
-        if (Math.abs(y - A.taxiway.centerY) < 0.025) c = 0xf2c230;
-      } else if (y >= A.taxiway.y1 && y < A.runway.y0 && A.connectors.some((k) => x >= k.x0 && x < k.x1)) {
-        c = 0x4a4d52;
-        const k = A.connectors.find((k) => x >= k.x0 && x < k.x1);
-        if (Math.abs(x - (k.x0 + k.x1) / 2) < 0.025) c = 0xf2c230;
-      } else if (x >= A.apron.x0 && x < A.apron.x1 && y >= A.apron.y0 && y < A.apron.y1) {
-        c = 0xa9adb3;
-        if (frac(x * 2) < 0.012 || frac(y * 2) < 0.012) c = 0x979ba1;
-        for (const sp of A.spots) {
-          if (Math.abs(x - sp.x) < 0.02 && y > A.apron.y0 + 0.4) c = 0xf2c230;
-          if (Math.abs(y - (A.apron.y0 + 0.4)) < 0.025 && Math.abs(x - sp.x) < 0.35) c = 0xf2c230;
-        }
-      } else if (x >= s.x && x < s.x + s.w && y >= s.y && y < s.y + s.d) {
-        c = 0x8f949a;
-      }
-      pix.set(px, py, c);
+      const dash = Math.abs(across - 0.5) < 0.022 && along >= 0.1 && along < 0.4;
+      if (dash) pix.set(px, py, COLORS.dash);
+      else if (along >= 0.5 - a - 0.012 && across >= a && across < 1 - a) pix.set(px, py, COLORS.asphalt);
     }
   }
   return pix;

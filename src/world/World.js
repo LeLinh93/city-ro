@@ -1,8 +1,6 @@
 import { MAP_SIZE, GROUND, SIDES, SIDE_LIST } from '../constants.js';
-import { BUILDINGS } from '../data/buildings.js';
+import { BUILDINGS } from '../themes/catalog.js';
 import { generateMap } from './mapgen.js';
-
-const SAVE_KEY = 'citybuilder.save.v1';
 
 // The rotated version of a side: rotation mirrors the building, swapping x and y.
 const ROT_SIDE = { ne: 'nw', nw: 'ne', se: 'sw', sw: 'se' };
@@ -159,12 +157,13 @@ export class World {
     return b;
   }
 
-  removeBuilding(id) {
+  // silent: no dust or shrink animation (used when a building is picked up to be moved).
+  removeBuilding(id, { silent = false } = {}) {
     const b = this.buildings.get(id);
     if (!b) return false;
     for (let j = b.y; j < b.y + b.d; j++) for (let i = b.x; i < b.x + b.w; i++) this.bldg[this.idx(i, j)] = 0;
     this.buildings.delete(id);
-    this.emit('building-removed', b);
+    this.emit('building-removed', b, silent);
     this.changed();
     return true;
   }
@@ -206,21 +205,8 @@ export class World {
     };
   }
 
-  save() {
-    try {
-      localStorage.setItem(SAVE_KEY, JSON.stringify(this.serialize()));
-    } catch {
-      // storage can be unavailable (private mode); the game still works
-    }
-  }
-
-  static load() {
-    let data = null;
-    try {
-      data = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null');
-    } catch {
-      data = null;
-    }
+  // Rebuild a world from serialize() data. Buildings are added later, once the views exist (see GameScene).
+  static fromData(data) {
     if (!data || data.v !== 1) return null;
     const w = new World(data.seed);
     for (const k of data.trees || []) {
@@ -233,16 +219,7 @@ export class World {
         w.roadCount++;
       }
     }
-    // Buildings are added after the views exist (see GameScene), so keep them for later.
     w.pendingBuildings = (data.buildings || []).filter((b) => BUILDINGS[b[0]]);
     return w;
-  }
-
-  static clearSave() {
-    try {
-      localStorage.removeItem(SAVE_KEY);
-    } catch {
-      // ignore
-    }
   }
 }

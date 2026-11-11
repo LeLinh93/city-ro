@@ -12,16 +12,32 @@
     <link rel="icon" type="image/png" href="icons/icon-192.png" />
     <title>Little City</title>
   </head>
-  <body>
+  <body class="in-menu">
     <div id="game"></div>
-    <div id="hint"></div>
-    <div id="topbar">
-      <button id="zoom-out" class="round" aria-label="Zoom out">➖</button>
-      <button id="zoom-in" class="round" aria-label="Zoom in">➕</button>
-      <button id="new-island" class="round" aria-label="New island">🏝️</button>
+
+    <div id="menu">
+      <h1 id="menu-title">City Builder</h1>
+      <div id="menu-panel">
+        <button id="new-city" aria-label="New city">＋</button>
+        <div id="city-list"></div>
+      </div>
     </div>
-    <button id="rotate" class="round hidden" aria-label="Turn building">🔄</button>
-    <div id="toolbar"></div>
+
+    <div id="hud">
+      <div id="hint"></div>
+      <div id="topbar">
+        <button id="zoom-out" class="round" aria-label="Zoom out">➖</button>
+        <button id="zoom-in" class="round" aria-label="Zoom in">➕</button>
+        <button id="home" class="round" aria-label="Back to menu">🏠</button>
+      </div>
+      <div id="place" class="hidden">
+        <button id="place-ok" class="round" aria-label="Build">✔</button>
+        <button id="place-no" class="round" aria-label="Cancel">✖</button>
+        <button id="place-flip" class="round" aria-label="Turn">🔄</button>
+      </div>
+      <div id="submenu" class="hidden"></div>
+      <div id="toolbar"></div>
+    </div>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

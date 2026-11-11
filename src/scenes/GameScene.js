@@ -1,28 +1,37 @@
 import Phaser from 'phaser';
-import { BUILDINGS } from '../data/buildings.js';
-import { toWorld } from '../iso.js';
+import { BUILDINGS } from '../themes/catalog.js';
+import { toWorld, toGrid } from '../iso.js';
 import { World } from '../world/World.js';
 import { GroundView } from '../world/GroundView.js';
-import { BuildingView, Ghost } from '../world/BuildingView.js';
+import { BuildingView, Ghost, footprintPlacement } from '../world/BuildingView.js';
 import { Effects } from '../world/Effects.js';
 import { Pathfinder } from '../agents/Pathfinder.js';
 import { People } from '../agents/People.js';
 import { Traffic } from '../agents/Traffic.js';
 import { Airports } from '../agents/Airports.js';
 import { Controls } from '../input/Controls.js';
+import { loadCity, saveCity } from '../saves.js';
 
+// One city. Started with { city } (an entry from saves.js) and stopped when going back to the menu.
 export class GameScene extends Phaser.Scene {
   constructor() {
     super('game');
   }
 
+  init(data) {
+    this.city = data.city;
+  }
+
   create() {
-    const world = World.load() || new World((Math.random() * 2 ** 31) | 0);
+    const world = World.fromData(loadCity(this.city.id)) || new World((Math.random() * 2 ** 31) | 0);
     this.world = world;
     this.views = new Map();
     this.tool = 'hand';
     this.rot = 0;
+    this.pending = null; // building waiting for ✔ / ✖: { type, x, y, moving? }
     this.lastHover = null;
+    this.saveTimer = null;
+    this.alphaCache = null;
 
     this.pf = new Pathfinder(world);
     this.ground = new GroundView(this, world);
@@ -38,23 +47,31 @@ export class GameScene extends Phaser.Scene {
       this.fx.addChimneys(view);
       if (!silent) this.fx.dustFootprint(b);
     });
-    world.on('building-removed', (b) => {
-      this.views.get(b.id)?.destroy(true);
+    world.on('building-removed', (b, silent) => {
+      this.views.get(b.id)?.destroy(!silent);
       this.views.delete(b.id);
       this.fx.removeChimneys(b);
-      this.fx.dustFootprint(b);
+      if (!silent) this.fx.dustFootprint(b);
     });
+    // Auto save: shortly after every change, plus once a minute just in case.
     world.on('changed', () => this.queueSave());
+    this.time.addEvent({ delay: 60000, loop: true, callback: () => this.saveNow() });
 
     for (const [type, x, y, rot] of world.pendingBuildings || []) world.addBuilding(type, x, y, rot, { silent: true });
     world.pendingBuildings = null;
+    if (!loadCity(this.city.id)) this.saveNow(); // a brand new city is saved right away
 
     const cam = this.cameras.main;
     cam.setRoundPixels(true);
     const mid = toWorld(world.size / 2, world.size / 2);
     cam.centerOn(mid.x, mid.y);
     this.controls = new Controls(this);
-    this.scale.on('resize', (size) => this.cameras.resize(size.width, size.height));
+    const onResize = (size) => this.cameras.resize(size.width, size.height);
+    this.scale.on('resize', onResize);
+    this.events.once('shutdown', () => {
+      this.scale.off('resize', onResize);
+      if (this.saveTimer) this.saveTimer.remove();
+    });
     this.game.events.emit('city-ready', this);
   }
 
@@ -70,14 +87,9 @@ export class GameScene extends Phaser.Scene {
   // ---------- tools ----------
 
   setTool(tool) {
+    this.cancelPlacing();
     this.tool = tool;
-    this.ghost.hide();
     if (this.lastHover) this.toolHover(this.lastHover);
-  }
-
-  rotate() {
-    this.rot ^= 1;
-    if (this.lastHover && BUILDINGS[this.tool]) this.showGhost(this.lastHover);
   }
 
   toolDown(sq, action) {
@@ -88,8 +100,7 @@ export class GameScene extends Phaser.Scene {
       this.bulldoze(sq);
       this.ghost.showSquares([sq], false);
     } else if (BUILDINGS[this.tool]) {
-      action.sq = sq;
-      this.showGhost(sq);
+      this.grabPending(sq, action);
     }
   }
 
@@ -99,28 +110,27 @@ export class GameScene extends Phaser.Scene {
     else if (this.tool === 'bulldoze') {
       this.bulldoze(sq);
       this.ghost.showSquares([sq], false);
-    } else if (BUILDINGS[this.tool]) {
-      action.sq = sq;
-      this.showGhost(sq);
+    } else if (BUILDINGS[this.tool] && action.grab) {
+      this.movePending(sq[0] - action.grab[0], sq[1] - action.grab[1]);
     }
   }
 
   toolUp(sq, action) {
-    if (BUILDINGS[this.tool] && action.sq) this.placeBuilding(action.sq);
-    if (action.touch) this.ghost.hide();
+    if (action.touch && !BUILDINGS[this.tool]) this.ghost.hide();
   }
 
   toolCancel(action, young) {
     if (action.tool === 'road' && young && action.added) {
       for (const [i, j] of action.added) this.world.removeRoad(i, j);
     }
-    this.ghost.hide();
+    if (action.from && this.pending) this.movePending(...action.from);
+    else if (!this.pending) this.ghost.hide();
   }
 
   toolHover(sq) {
     this.lastHover = sq;
-    if (BUILDINGS[this.tool]) this.showGhost(sq);
-    else if (this.tool === 'road') this.ghost.showSquares([sq], this.world.canPlaceRoad(...sq));
+    if (BUILDINGS[this.tool]) return; // the waiting building stays where it is
+    if (this.tool === 'road') this.ghost.showSquares([sq], this.world.canPlaceRoad(...sq));
     else if (this.tool === 'bulldoze') this.ghost.showSquares([sq], false);
     else this.ghost.hide();
   }
@@ -132,6 +142,125 @@ export class GameScene extends Phaser.Scene {
     }
     this.ghost.showSquares([sq], true);
   }
+
+  // ---------- placing a building: drag it around, then ✔ build, ✖ cancel, 🔄 flip ----------
+
+  // A quick tap with the Move tool: pick up the building under the finger to move it.
+  handTap(sq) {
+    if (this.tool !== 'hand' || this.pending) return;
+    const b = this.buildingUnderPointer() || this.world.buildingAt(...sq);
+    if (!b) return;
+    this.world.removeBuilding(b.id, { silent: true });
+    this.tool = b.type;
+    this.rot = b.rot;
+    this.pending = { type: b.type, moving: { x: b.x, y: b.y, rot: b.rot } };
+    this.movePending(b.x, b.y);
+    this.events.emit('picked-up', b.type);
+  }
+
+  // Start placing a building with its middle on square sq (default: the middle of the screen).
+  startPlacing(type, sq = this.screenSquare()) {
+    this.tool = type;
+    const a = this.world.anchorFor(type, this.rot, sq[0], sq[1]);
+    this.pending = { type };
+    this.movePending(a.x, a.y);
+  }
+
+  // Finger down on the map: grab the building if the finger is on it, else bring it to the finger.
+  grabPending(sq, action) {
+    if (!this.pending) this.startPlacing(this.tool, sq);
+    const p = this.pending;
+    const f = this.world.footprint(p.type, this.rot);
+    const on = sq[0] >= p.x - 1 && sq[0] <= p.x + f.w && sq[1] >= p.y - 1 && sq[1] <= p.y + f.d;
+    action.from = [p.x, p.y];
+    if (!on) {
+      const a = this.world.anchorFor(p.type, this.rot, sq[0], sq[1]);
+      this.movePending(a.x, a.y);
+    }
+    action.grab = [sq[0] - p.x, sq[1] - p.y];
+  }
+
+  movePending(x, y) {
+    const p = this.pending;
+    if (!p) return;
+    p.x = x;
+    p.y = y;
+    const f = this.world.footprint(p.type, this.rot);
+    p.w = f.w;
+    p.d = f.d;
+    p.ok = this.world.canPlaceBuilding(p.type, x, y, this.rot);
+    this.ghost.show(p.type, BUILDINGS[p.type], x, y, this.rot, f.w, f.d, p.ok);
+  }
+
+  // Mirror the building. A 2x1 building becomes 1x2; it stays centred where it was.
+  flipPlacing() {
+    const p = this.pending;
+    this.rot ^= 1;
+    if (!p) return;
+    const mid = [p.x + Math.floor((p.w - 1) / 2), p.y + Math.floor((p.d - 1) / 2)];
+    const a = this.world.anchorFor(p.type, this.rot, mid[0], mid[1]);
+    this.movePending(a.x, a.y);
+  }
+
+  confirmPlacing() {
+    const p = this.pending;
+    if (!p) return false;
+    if (!p.ok) {
+      this.cameras.main.shake(120, 0.002);
+      return false;
+    }
+    this.world.addBuilding(p.type, p.x, p.y, this.rot);
+    this.pending = null;
+    this.ghost.hide();
+    return true;
+  }
+
+  // ✖: a new building just disappears; a building that was being moved goes back where it was.
+  cancelPlacing() {
+    const m = this.pending?.moving;
+    if (m) {
+      this.rot = m.rot;
+      this.world.addBuilding(this.pending.type, m.x, m.y, m.rot, { silent: true });
+    }
+    this.pending = null;
+    this.ghost.hide();
+  }
+
+  // Where the ✔ ✖ ⇆ buttons go: above the waiting building, in CSS pixels.
+  placingAnchor() {
+    const p = this.pending;
+    if (!p) return null;
+    const cam = this.cameras.main;
+    const place = footprintPlacement(p.x, p.y, p.w, p.d);
+    const tex = this.textures.get(BUILDINGS[p.type].base || BUILDINGS[p.type].image).source[0];
+    const top = place.tipY - tex.height * (place.width / tex.width);
+    const k = cam.zoom * this.scale.zoom;
+    return {
+      x: (place.left + place.width / 2 - cam.worldView.x) * k,
+      y: (top - cam.worldView.y) * k,
+      bottom: (place.tipY - cam.worldView.y) * k,
+      ok: p.ok,
+    };
+  }
+
+  screenSquare() {
+    const cam = this.cameras.main;
+    const c = cam.getWorldPoint(cam.width / 2, cam.height / 2);
+    const g = toGrid(c.x, c.y);
+    return [Math.floor(g.fx), Math.floor(g.fy)];
+  }
+
+  // Map square under a point of the page (CSS pixels), e.g. a finger dragging a building in from the menu.
+  squareAtClient(clientX, clientY) {
+    const rect = this.game.canvas.getBoundingClientRect();
+    const sx = (clientX - rect.left) / this.scale.zoom;
+    const sy = (clientY - rect.top) / this.scale.zoom;
+    const c = this.cameras.main.getWorldPoint(sx, sy);
+    const g = toGrid(c.x, c.y);
+    return [Math.floor(g.fx), Math.floor(g.fy)];
+  }
+
+  // ---------- removing ----------
 
   // Alpha of one pixel of a texture (cached per texture).
   alphaAt(key, x, y) {
@@ -171,28 +300,6 @@ export class GameScene extends Phaser.Scene {
     const b = this.buildingUnderPointer() || w.buildingAt(i, j);
     if (b) w.removeBuilding(b.id);
     else if (w.removeRoad(i, j)) this.fx.dustSquares([[i, j]]);
-    else if (w.inBounds(i, j) && w.clearTree(i, j)) {
-      this.fx.dustSquares([[i, j]]);
-      w.changed();
-    }
-  }
-
-  placement(sq) {
-    const type = this.tool;
-    const a = this.world.anchorFor(type, this.rot, sq[0], sq[1]);
-    const f = this.world.footprint(type, this.rot);
-    return { type, x: a.x, y: a.y, w: f.w, d: f.d, ok: this.world.canPlaceBuilding(type, a.x, a.y, this.rot) };
-  }
-
-  showGhost(sq) {
-    const p = this.placement(sq);
-    this.ghost.show(p.type, BUILDINGS[p.type], p.x, p.y, this.rot, p.w, p.d, p.ok);
-  }
-
-  placeBuilding(sq) {
-    const p = this.placement(sq);
-    if (p.ok) this.world.addBuilding(p.type, p.x, p.y, this.rot);
-    else this.cameras.main.shake(120, 0.002);
   }
 
   cameraMoved() {}
@@ -201,11 +308,16 @@ export class GameScene extends Phaser.Scene {
 
   queueSave() {
     if (this.saveTimer) this.saveTimer.remove();
-    this.saveTimer = this.time.delayedCall(700, () => this.world.save());
+    this.saveTimer = this.time.delayedCall(700, () => this.saveNow());
   }
 
-  newIsland() {
-    World.clearSave();
-    window.location.reload();
+  saveNow() {
+    if (this.saveTimer) this.saveTimer.remove();
+    this.saveTimer = null;
+    const data = this.world.serialize();
+    // a building that is being moved is saved where it was
+    const m = this.pending?.moving;
+    if (m) data.buildings.push([this.pending.type, m.x, m.y, m.rot]);
+    saveCity(this.city.id, data);
   }
 }
