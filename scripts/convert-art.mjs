@@ -1,9 +1,10 @@
 // Turns big source art into game-ready pixel art.
 //
-//   npm run art                 convert everything in art-source/ into assets/
+//   npm run art                 convert the pictures in art-source/ that are new or changed into assets/
+//   npm run art -- --all        convert every picture again
 //   npm run art -- --preview    also write 4x zoomed copies to art-preview/ for checking
 //   npm run art -- --out <dir>  write somewhere else instead of assets/
-//   npm run art -- house        only jobs whose output name contains "house"
+//   npm run art -- house        only jobs whose output name contains "house" (always converted again)
 //
 // Three ways to say what to convert:
 //  1. Theme buildings: art-source/building-<theme>/<Menu>/<name>-<W>x<D>.png
@@ -34,11 +35,13 @@ const args = process.argv.slice(2);
 let SRC = 'art-source';
 let OUT = 'assets';
 let preview = false;
+let all = false;
 const filters = [];
 for (let k = 0; k < args.length; k++) {
   if (args[k] === '--out') OUT = args[++k];
   else if (args[k] === '--src') SRC = args[++k];
   else if (args[k] === '--preview') preview = true;
+  else if (args[k] === '--all') all = true;
   else filters.push(args[k]);
 }
 
@@ -349,7 +352,7 @@ function collectJobs() {
   if (existsSync(cfgPath)) {
     const cfg = JSON.parse(readFileSync(cfgPath, 'utf8'));
     for (const j of cfg.jobs || []) {
-      jobs.push(j);
+      jobs.push({ ...j, listed: true });
       used.add(j.from.replace(/\\/g, '/'));
     }
   }
@@ -419,10 +422,23 @@ async function run(job) {
   console.log(`${job.from}${job.crop ? ` [${job.crop}]` : ''} -> ${dest}  ${tw}x${th}`);
 }
 
-const jobs = collectJobs();
-if (!jobs.length) {
+// A game file is up to date when it is newer than its source picture (and than convert.json for listed jobs).
+const mtime = (f) => (existsSync(f) ? statSync(f).mtimeMs : 0);
+const cfgTime = mtime(join(SRC, 'convert.json'));
+function upToDate(job) {
+  const out = mtime(join(OUT, job.to));
+  return out > 0 && out >= mtime(join(SRC, job.from)) && (!job.listed || out >= cfgTime);
+}
+
+const found = collectJobs();
+if (!found.length) {
   console.log(`Nothing to convert. Put images in ${SRC}/<folder>/<name>.png or list jobs in ${SRC}/convert.json (see ASSETS.md).`);
 }
+// Pictures named on the command line, --all and --preview always convert; otherwise only new or changed ones.
+const jobs = all || preview || filters.length ? found : found.filter((j) => !upToDate(j));
+const skipped = found.length - jobs.length;
+if (skipped) console.log(`${skipped} picture${skipped === 1 ? ' is' : 's are'} already converted (npm run art -- --all to redo them).`);
+if (found.length && !jobs.length) console.log('Nothing new to convert.');
 let failed = 0;
 for (const job of jobs) {
   try {

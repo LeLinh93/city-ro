@@ -50,8 +50,14 @@ npm run art -- --preview
 npm run art -- skyscraper
 ```
 
-The first converts everything. The second also writes 4× zoomed copies to `art-preview/` for checking.
-The third only converts files whose name contains "skyscraper".
+```bash
+npm run art -- --all
+```
+
+The first converts only pictures that are new or changed since they were last converted, so you can drop new
+buildings in and run it again. The second converts everything and also writes 4× zoomed copies to `art-preview/`
+for checking. The third converts files whose name contains "skyscraper", even if they were converted before.
+The fourth converts everything again (use it after changing the converter itself).
 
 For each building it scales the whole picture to (W + D) × 64 px wide using the size in the file name (a 512 px
 wide 1 × 1 picture is shrunk exactly 4 ×, averaging 4 × 4 pixels into one), keeps the bottom edge in place, makes
