@@ -1,5 +1,7 @@
 import { DEPTH, GROUND, GROUND_NAMES, HW, HH, SIDES, SIDE_LIST } from '../constants.js';
 import { toGrid, viewRect } from '../iso.js';
+import { genShores, SHORE_KINDS } from '../art/placeholders.js';
+import { addPix } from '../scenes/BootScene.js';
 
 // Draws only the squares that are on screen (ground, shore edges, roads),
 // reusing a pool of images. A 100 x 100 map would otherwise be ~15,000 images.
@@ -35,6 +37,7 @@ export class GroundView {
     this.roadTiles = reg.get('roadTiles');
     this.waterFrames = this.variants.water.map((k) => Math.max(1, scene.textures.get(k).frameTotal - 1));
     this.checker = reg.get('checkerGrass');
+    this.drawn = new Map(); // edge texture key -> drawn by code (no picture file)
     world.on('road-added', (i, j) => this.roadAnims.set(world.idx(i, j), scene.time.now));
   }
 
@@ -54,6 +57,26 @@ export class GroundView {
   // Grass fringe matching the checkerboard colour of the grass square it comes from.
   edgeKey(kind, part, dark) {
     return kind === 'grass' && dark && this.checker ? `edge_grass_${part}_1` : `edge_${kind}_${part}`;
+  }
+
+  // Is this a bank / quay / kerb edge that has no picture file (so it can be drawn by code)?
+  drawnShore(kind, part) {
+    if (!SHORE_KINDS.includes(kind)) return false;
+    const key = `edge_${kind}_${part}`;
+    let drawn = this.drawn.get(key);
+    if (drawn === undefined) {
+      const tex = this.scene.textures.exists(key) && this.scene.textures.get(key);
+      drawn = !tex || tex.source[0].image instanceof HTMLCanvasElement;
+      this.drawn.set(key, drawn);
+    }
+    return drawn;
+  }
+
+  // One picture with all the code-drawn shore edges of a square, made the first time it's needed.
+  shoreKey(parts) {
+    const key = `shores_${parts.map(([kind, part]) => `${kind}-${part}`).join('_')}`;
+    if (!this.scene.textures.exists(key)) addPix(this.scene, key, genShores(parts));
+    return key;
   }
 
   rank(i, j) {
@@ -120,17 +143,24 @@ export class GroundView {
           // edges drawn on this square where it meets a different ground (shores, banks, quays, kerbs)
           if (g !== GROUND.GRASS) {
             const side = {};
+            const parts = []; // [kind, part, checker colour]
             for (const s of SIDE_LIST) {
               const d = SIDES[s];
               side[s] = edgeKind(g, this.rank(i + d.dx, j + d.dy));
-              if (side[s]) this.img(this.edgeKey(side[s], s, (i + j + 1) & 1)).setPosition(cx, cy).setDepth(DEPTH.EDGE);
+              if (side[s]) parts.push([side[s], s, (i + j + 1) & 1]);
             }
             for (const c of CORNERS) {
               if (side[c.a] || side[c.b]) continue;
               const kind = edgeKind(g, this.rank(i + c.di, j + c.dj));
-              if (kind && kind !== 'curb') {
-                this.img(this.edgeKey(kind, c.name, (i + j) & 1)).setPosition(cx, cy).setDepth(DEPTH.EDGE);
-              }
+              if (kind) parts.push([kind, c.name, (i + j) & 1]);
+            }
+            // Code-drawn shores of one square are drawn as one picture so their stripes meet in the corners.
+            const shores = parts.filter(([kind, part]) => this.drawnShore(kind, part));
+            if (shores.length) this.img(this.shoreKey(shores)).setPosition(cx, cy).setDepth(DEPTH.EDGE);
+            for (const [kind, part, dark] of parts) {
+              if (shores.length && this.drawnShore(kind, part)) continue;
+              const key = this.edgeKey(kind, part, dark);
+              if (this.scene.textures.exists(key)) this.img(key).setPosition(cx, cy).setDepth(DEPTH.EDGE);
             }
           }
 
