@@ -185,6 +185,7 @@ export class GameScene extends Phaser.Scene {
 
   // Start placing a building with its middle on square sq (default: the middle of the screen).
   startPlacing(type, sq = this.screenSquare()) {
+    this.cancelMove(); // a building that was being moved goes back where it was
     this.tool = type;
     const a = this.world.anchorFor(type, this.rot, sq[0], sq[1]);
     this.pending = { type };
@@ -253,6 +254,16 @@ export class GameScene extends Phaser.Scene {
     }
     this.pending = null;
     this.ghost.hide();
+  }
+
+  // Anything that interrupts a move (opening a menu, picking another building) puts the building back
+  // where it was and goes back to the Move tool. A new building that isn't built yet is left alone.
+  // Returns true if a building was put back.
+  cancelMove() {
+    if (!this.pending?.moving) return false;
+    this.cancelPlacing();
+    this.tool = 'hand';
+    return true;
   }
 
   // Where the ✔ ✖ ⇆ buttons go: above the waiting building, in CSS pixels.
