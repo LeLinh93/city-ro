@@ -6,8 +6,19 @@ const HINTS = {
   road: 'Drag your finger to draw roads.',
   bulldoze: 'Tap or drag to remove things.',
   menu: 'Tap a building, or drag it onto the map.',
-  placing: 'Drag the building to move it. ✔ builds it, 🔄 turns it, ✖ cancels.',
+  plot: 'Pick a ground to paint with.',
+  paint: "Tap or drag to paint the ground. Water can't go under roads or buildings.",
+  placing: 'Drag the building to move it, or drag beside it to look around. ✔ builds it, 🔄 turns it, ✖ cancels.',
 };
+
+// The ground you can paint with the Plot tool.
+const PAINTS = [
+  { paint: 'grass', name: 'Grass', texture: 'grass_0' },
+  { paint: 'sand', name: 'Sand', texture: 'sand_0' },
+  { paint: 'water', name: 'Water', texture: 'water_0' },
+  { paint: 'pavement', name: 'Pavement', texture: 'pavement_0' },
+];
+const isPaint = (id) => typeof id === 'string' && id.startsWith('paint:');
 
 const DRAG_START = 12; // px a finger must move before a menu item is dragged instead of tapped
 
@@ -32,6 +43,16 @@ export class UI {
     document.getElementById('place-no').addEventListener('click', () => this.select('hand'));
     document.getElementById('place-flip').addEventListener('click', () => this.scene?.flipPlacing());
 
+    // A finger on the building menu: swipe sideways to scroll, drag up to carry a building out, tap to place it.
+    this.sub.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      const def = e.target.closest?.('.item')?.def || null;
+      this.drag = { def, x0: e.clientX, y0: e.clientY, id: e.pointerId, started: false, scroll: null };
+    });
+    this.sub.addEventListener('wheel', (e) => {
+      this.sub.scrollLeft += Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+      e.preventDefault();
+    }, { passive: false });
     window.addEventListener('pointermove', (e) => this.dragMove(e));
     window.addEventListener('pointerup', (e) => this.dragEnd(e));
     window.addEventListener('pointercancel', (e) => this.dragEnd(e, true));
@@ -82,36 +103,40 @@ export class UI {
     this.buttons.clear();
     this.button('hand', '✋', 'Move', () => this.select('hand'));
     this.button('road', '🛣️', 'Road', () => this.select('road'));
-    for (const m of MENUS) this.button(`menu:${m.name}`, m.icon, m.name, () => this.toggleMenu(m));
+    const plot = PAINTS.map((p) => ({ ...p, url: this.scene.textures.getBase64(p.texture, 0) }));
+    this.button('plot', '🖌️', 'Plot', () => this.toggleMenu('plot', plot, HINTS.plot));
+    for (const m of MENUS) this.button(`menu:${m.name}`, m.icon, m.name, () => this.toggleMenu(`menu:${m.name}`, m.items, HINTS.menu));
     this.button('bulldoze', '🚜', 'Remove', () => this.select('bulldoze'));
   }
 
-  // Pick a tool (hand, road, bulldoze, or a building id).
+  // Pick a tool (hand, road, bulldoze, 'paint:<ground>' or a building id).
   select(id, hint = true) {
     this.closeMenu();
     this.scene?.setTool(id);
     this.highlight(id);
-    if (hint && HINTS[id]) this.showHint(HINTS[id]);
+    const text = HINTS[id] || (isPaint(id) && HINTS.paint);
+    if (hint && text) this.showHint(text);
     else this.hint.classList.remove('show');
   }
 
   highlight(id) {
     const def = BUILDINGS[id];
-    const key = def ? `menu:${def.menu}` : id;
+    const key = def ? `menu:${def.menu}` : isPaint(id) ? 'plot' : id;
     for (const [k, b] of this.buttons) b.classList.toggle('active', k === key || k === this.openMenu);
   }
 
-  // ---------- building menus ----------
+  // ---------- building and ground menus ----------
 
-  toggleMenu(m) {
-    if (this.openMenu === `menu:${m.name}`) {
+  // items: building defs, or ground paints ({ paint, name, url }).
+  toggleMenu(key, items, hint) {
+    if (this.openMenu === key) {
       this.closeMenu();
       this.highlight(this.scene?.tool);
       return;
     }
-    this.openMenu = `menu:${m.name}`;
+    this.openMenu = key;
     this.sub.textContent = '';
-    for (const def of m.items) {
+    for (const def of items) {
       const item = document.createElement('button');
       item.className = 'item';
       const pic = document.createElement('img');
@@ -123,17 +148,16 @@ export class UI {
       name.textContent = def.name;
       const size = document.createElement('span');
       size.className = 'size';
-      size.textContent = `${def.w}×${def.d}`;
+      size.textContent = def.paint ? '' : `${def.w}×${def.d}`;
+      if (def.paint && this.scene?.tool === `paint:${def.paint}`) item.classList.add('active');
       item.append(pic, name, size);
-      item.addEventListener('pointerdown', (e) => {
-        e.preventDefault();
-        this.drag = { def, x0: e.clientX, y0: e.clientY, id: e.pointerId, started: false };
-      });
+      item.def = def;
       this.sub.appendChild(item);
     }
     this.sub.classList.remove('hidden');
+    this.sub.scrollLeft = 0;
     this.highlight(this.scene?.tool);
-    this.showHint(HINTS.menu);
+    this.showHint(hint);
   }
 
   closeMenu() {
@@ -141,13 +165,24 @@ export class UI {
     this.sub.classList.add('hidden');
   }
 
-  // A finger that starts on a menu item: a tap places the building in the middle of the screen,
-  // a drag carries it onto the map.
+  // A finger that starts on the building menu: a tap places the building in the middle of the screen,
+  // a sideways swipe scrolls the menu, and a drag upwards carries the building onto the map.
   dragMove(e) {
     const d = this.drag;
     if (!d || e.pointerId !== d.id || !this.scene) return;
+    if (d.scroll !== null) {
+      this.sub.scrollLeft = d.scroll - (e.clientX - d.x0);
+      return;
+    }
     if (!d.started) {
-      if (Math.hypot(e.clientX - d.x0, e.clientY - d.y0) < DRAG_START) return;
+      const dx = e.clientX - d.x0;
+      const dy = e.clientY - d.y0;
+      if (Math.hypot(dx, dy) < DRAG_START) return;
+      if (!d.def || d.def.paint || Math.abs(dx) > Math.abs(dy)) {
+        d.scroll = this.sub.scrollLeft + dx; // so the menu doesn't jump by the first few pixels
+        this.sub.scrollLeft = d.scroll - dx;
+        return;
+      }
       d.started = true;
       this.closeMenu();
       this.highlight(d.def.id);
@@ -159,9 +194,13 @@ export class UI {
     const d = this.drag;
     if (!d || e.pointerId !== d.id) return;
     this.drag = null;
-    if (!this.scene || cancelled) return;
+    if (!this.scene || cancelled || d.scroll !== null || !d.def) return;
     if (!d.started) {
       if (!e.target.closest || !e.target.closest('#submenu')) return; // finger slid off the menu
+      if (d.def.paint) {
+        this.select(`paint:${d.def.paint}`);
+        return;
+      }
       this.closeMenu();
       this.scene.startPlacing(d.def.id);
     }

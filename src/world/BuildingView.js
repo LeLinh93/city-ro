@@ -158,6 +158,22 @@ export class Ghost {
     this.drawOutline(x, y, w, d, ok);
   }
 
+  // Is world point (wx, wy) on the waiting building's picture?
+  hit(wx, wy, alphaAt) {
+    for (const im of [this.main, this.base]) {
+      if (!im.visible) continue;
+      const s = im.scaleX;
+      const fw = im.frame.cutWidth;
+      const fh = im.frame.cutHeight;
+      let lx = Math.floor((wx - (im.x - im.originX * fw * s)) / s);
+      const ly = Math.floor((wy - (im.y - im.originY * fh * s)) / s);
+      if (lx < 0 || ly < 0 || lx >= fw || ly >= fh) continue;
+      if (im.flipX) lx = fw - 1 - lx;
+      if (alphaAt(im.texture.key, lx, ly) > 40) return true;
+    }
+    return false;
+  }
+
   showSquares(squares, ok) {
     this.base.setVisible(false);
     this.main.setVisible(false);

@@ -11,6 +11,10 @@ import { Traffic } from '../agents/Traffic.js';
 import { Airports } from '../agents/Airports.js';
 import { Controls } from '../input/Controls.js';
 import { loadCity, saveCity } from '../saves.js';
+import { GROUND } from '../constants.js';
+
+// Ground number for a paint tool id like 'paint:water', or null for other tools.
+const paintGround = (tool) => (typeof tool === 'string' && tool.startsWith('paint:') ? GROUND[tool.slice(6).toUpperCase()] ?? null : null);
 
 // One city. Started with { city } (an entry from saves.js) and stopped when going back to the menu.
 export class GameScene extends Phaser.Scene {
@@ -99,6 +103,9 @@ export class GameScene extends Phaser.Scene {
     } else if (this.tool === 'bulldoze') {
       this.bulldoze(sq);
       this.ghost.showSquares([sq], false);
+    } else if (paintGround(this.tool) !== null) {
+      action.painted = [];
+      this.paint(sq, action);
     } else if (BUILDINGS[this.tool]) {
       this.grabPending(sq, action);
     }
@@ -110,6 +117,8 @@ export class GameScene extends Phaser.Scene {
     else if (this.tool === 'bulldoze') {
       this.bulldoze(sq);
       this.ghost.showSquares([sq], false);
+    } else if (action.painted) {
+      this.paint(sq, action);
     } else if (BUILDINGS[this.tool] && action.grab) {
       this.movePending(sq[0] - action.grab[0], sq[1] - action.grab[1]);
     }
@@ -123,6 +132,9 @@ export class GameScene extends Phaser.Scene {
     if (action.tool === 'road' && young && action.added) {
       for (const [i, j] of action.added) this.world.removeRoad(i, j);
     }
+    if (young && action.painted) {
+      for (const [i, j, g] of action.painted.reverse()) this.world.paintGround(i, j, g);
+    }
     if (action.from && this.pending) this.movePending(...action.from);
     else if (!this.pending) this.ghost.hide();
   }
@@ -132,7 +144,20 @@ export class GameScene extends Phaser.Scene {
     if (BUILDINGS[this.tool]) return; // the waiting building stays where it is
     if (this.tool === 'road') this.ghost.showSquares([sq], this.world.canPlaceRoad(...sq));
     else if (this.tool === 'bulldoze') this.ghost.showSquares([sq], false);
+    else if (paintGround(this.tool) !== null) this.ghost.showSquares([sq], this.world.canPaint(...sq, paintGround(this.tool)));
     else this.ghost.hide();
+  }
+
+  // Paint tool ('paint:water', 'paint:sand', ...): change the ground of one square.
+  paint(sq, action) {
+    const g = paintGround(this.tool);
+    const w = this.world;
+    const ok = w.canPaint(...sq, g);
+    if (ok) {
+      const old = w.ground[w.idx(...sq)];
+      if (w.paintGround(...sq, g)) action.painted.push([...sq, old]);
+    }
+    this.ghost.showSquares([sq], ok);
   }
 
   paintRoad(sq, action) {
@@ -166,17 +191,21 @@ export class GameScene extends Phaser.Scene {
     this.movePending(a.x, a.y);
   }
 
-  // Finger down on the map: grab the building if the finger is on it, else bring it to the finger.
+  // Is the world point on the waiting building (its picture, or its squares with a little extra room)?
+  onPending(w) {
+    const p = this.pending;
+    if (!p || !w) return false;
+    const g = toGrid(w.x, w.y);
+    const m = 0.5;
+    if (g.fx >= p.x - m && g.fx <= p.x + p.w + m && g.fy >= p.y - m && g.fy <= p.y + p.d + m) return true;
+    return this.ghost.hit(w.x, w.y, (k, x, y) => this.alphaAt(k, x, y));
+  }
+
+  // Finger down on the waiting building: it follows the finger from where it was grabbed.
   grabPending(sq, action) {
     if (!this.pending) this.startPlacing(this.tool, sq);
     const p = this.pending;
-    const f = this.world.footprint(p.type, this.rot);
-    const on = sq[0] >= p.x - 1 && sq[0] <= p.x + f.w && sq[1] >= p.y - 1 && sq[1] <= p.y + f.d;
     action.from = [p.x, p.y];
-    if (!on) {
-      const a = this.world.anchorFor(p.type, this.rot, sq[0], sq[1]);
-      this.movePending(a.x, a.y);
-    }
     action.grab = [sq[0] - p.x, sq[1] - p.y];
   }
 

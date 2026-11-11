@@ -283,19 +283,27 @@ body.in-menu #hud {
   bottom: calc(100px + env(safe-area-inset-bottom));
   transform: translateX(-50%);
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
+  flex-wrap: nowrap;
   gap: 8px;
   padding: 10px;
   width: max-content;
   max-width: calc(100vw - 24px);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  touch-action: none; /* sideways swipes are handled in ui.js */
   background: var(--panel);
   border: 1px solid var(--panel-border);
   border-radius: 22px;
   box-shadow: var(--shadow);
 }
 
+#submenu::-webkit-scrollbar {
+  display: none;
+}
+
 .item {
+  flex: 0 0 auto;
   width: 104px;
   padding: 6px 4px;
   border-radius: 16px;
@@ -309,6 +317,10 @@ body.in-menu #hud {
 
 .item:active {
   transform: scale(0.94);
+}
+
+.item.active,
+.item:active {
   background: var(--active);
 }
 

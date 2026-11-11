@@ -10,6 +10,15 @@ const CORNERS = [
   { name: 'w', di: -1, dj: 1, a: 'sw', b: 'nw' },
 ];
 
+// Which edge picture a square of ground g gets from a neighbour of ground n (null = none).
+function edgeKind(g, n) {
+  if (g === n) return null;
+  if (g === GROUND.WATER) return n === GROUND.SAND ? 'foam' : n === GROUND.GRASS ? 'bank' : 'quay';
+  if (g === GROUND.SAND) return n === GROUND.GRASS ? 'grass' : null;
+  if (g === GROUND.PAVEMENT) return n === GROUND.WATER ? null : 'curb';
+  return null;
+}
+
 export class GroundView {
   constructor(scene, world) {
     this.scene = scene;
@@ -49,7 +58,7 @@ export class GroundView {
 
   rank(i, j) {
     const w = this.world;
-    if (!w.inBounds(i, j)) return 0;
+    if (!w.inBounds(i, j)) return GROUND.WATER;
     return w.ground[w.idx(i, j)];
   }
 
@@ -108,17 +117,18 @@ export class GroundView {
           base.setPosition(cx, cy).setDepth(DEPTH.GROUND);
           if (g === GROUND.WATER) this.water.push({ im: base, n: this.waterFrames[gi] });
 
-          // shore edges on the lower of two neighbouring ground types
+          // edges drawn on this square where it meets a different ground (shores, banks, quays, kerbs)
           if (g !== GROUND.GRASS) {
-            const kind = g === GROUND.SAND ? 'grass' : 'foam';
-            const higher = {};
+            const side = {};
             for (const s of SIDE_LIST) {
               const d = SIDES[s];
-              higher[s] = this.rank(i + d.dx, j + d.dy) > g;
-              if (higher[s]) this.img(this.edgeKey(kind, s, (i + j + 1) & 1)).setPosition(cx, cy).setDepth(DEPTH.EDGE);
+              side[s] = edgeKind(g, this.rank(i + d.dx, j + d.dy));
+              if (side[s]) this.img(this.edgeKey(side[s], s, (i + j + 1) & 1)).setPosition(cx, cy).setDepth(DEPTH.EDGE);
             }
             for (const c of CORNERS) {
-              if (!higher[c.a] && !higher[c.b] && this.rank(i + c.di, j + c.dj) > g) {
+              if (side[c.a] || side[c.b]) continue;
+              const kind = edgeKind(g, this.rank(i + c.di, j + c.dj));
+              if (kind && kind !== 'curb') {
                 this.img(this.edgeKey(kind, c.name, (i + j) & 1)).setPosition(cx, cy).setDepth(DEPTH.EDGE);
               }
             }

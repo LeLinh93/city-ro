@@ -34,10 +34,12 @@ In a city, 🏠 (top right) saves and goes back to the menu.
 |---|---|
 | ✋ Move | Drag to look around. Two fingers pinch to zoom (works with every tool). |
 | 🛣️ Road | Drag to draw roads. They go straight along the grid; move sideways to turn a corner. |
-| 🏠 🏪 🏥 🗼 🌳 ✈️ … | Opens that group's buildings. Tap one (it appears in the middle) or drag it onto the map. |
+| 🖌️ Plot | Pick grass, sand, water or pavement, then tap or drag to paint the ground. Water can't go under roads or buildings. |
+| 🏠 🏪 🏥 🗼 🌳 ✈️ … | Opens that group's buildings in one row (swipe sideways for more). Tap one (it appears in the middle) or drag it up onto the map. |
 | 🚜 Remove | Tap or drag over roads and buildings. |
 
-While a building waits to be built, drag it around (green = OK, red = blocked), then:
+While a building waits to be built, drag it around (green = OK, red = blocked). Dragging beside it moves the
+map, and pinching still zooms. Then:
 ✔ builds it, ✖ cancels, 🔄 turns it (mirrors the picture, so a 2×1 building becomes 1×2).
 Both go back to ✋ Move. With ✋ Move, tap a building to pick it up and move or turn it the same way
 (✖ puts it back where it was).

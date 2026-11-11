@@ -18,6 +18,10 @@ export const COLORS = {
   curb: 0xc8ccd1,
   curbLine: 0x8d949b,
   dash: 0xf5f5f0,
+  pavement: 0xb4b5b7, // the grey paving around the city buildings
+  paveLight: 0xbabbbd,
+  paveDark: 0xafb0b2,
+  paveJoint: 0xa2a3a6,
 };
 
 export function genGround(type, variant, frames = 1) {
@@ -31,6 +35,14 @@ export function genGround(type, variant, frames = 1) {
         let c;
         if (type === 'grass') {
           c = COLORS.grass[variant % 2];
+        } else if (type === 'pavement') {
+          // 4 x 4 paving slabs; each square draws the joints on its top two sides only, so they line up
+          const su = u * 4;
+          const sv = v * 4;
+          const slab = hash2(Math.floor(su), Math.floor(sv), variant + 17);
+          c = slab < 0.3 ? COLORS.paveDark : slab > 0.75 ? COLORS.paveLight : COLORS.pavement;
+          if (frac(su) < 0.045 || frac(sv) < 0.045) c = COLORS.paveJoint;
+          else if (h < 0.04) c = COLORS.paveDark;
         } else if (type === 'sand') {
           c = COLORS.sand;
           if (h < 0.07) c = 0xe5d091;
@@ -76,6 +88,48 @@ export function genEdge(kind, part, variant = 0) {
       if (dist < t - 0.025) pix.set(px, py, main, alpha);
       else if (dist < t) pix.set(px, py, rim, alpha);
       else if (kind === 'foam' && dist < t + 0.05 && hash2(px, py, 5) < 0.25) pix.set(px, py, 0xffffff, 140);
+    }
+  }
+  return pix;
+}
+
+// Distance from the shared side or corner into the square (0..1), and the position along that side.
+function edgeDist(part, u, v) {
+  switch (part) {
+    case 'ne': return [v, u];
+    case 'se': return [1 - u, v];
+    case 'sw': return [1 - v, u];
+    case 'nw': return [u, v];
+    case 'n': return [Math.hypot(u, v), 0];
+    case 'e': return [Math.hypot(1 - u, v), 0];
+    case 's': return [Math.hypot(1 - u, 1 - v), 0];
+    default: return [Math.hypot(u, 1 - v), 0]; // w
+  }
+}
+
+// Bands of colour, from the shared edge inwards: [up to this distance, colour, alpha].
+const SHORES = {
+  // on a water square next to grass: grass lip, earth bank, foam
+  bank: { wobble: 0.012, bands: [[0.03, 0x62ab45], [0.075, 0x9a7048], [0.105, 0x7a5636], [0.135, 0xe4f5fc, 220]], spray: true },
+  // on a water square next to pavement: stone edge, quay wall, foam
+  quay: { wobble: 0, bands: [[0.035, 0xd2d3d5], [0.047, 0x9a9ca0], [0.1, 0x8a8c91], [0.115, 0x6f7176], [0.14, 0xe4f5fc, 210]], spray: true },
+  // on a pavement square next to grass or sand: a light kerb
+  curb: { wobble: 0, bands: [[0.03, 0xd6d7d9], [0.042, 0x9a9ca0]], spray: false },
+};
+
+export function genShore(kind, part) {
+  const S = SHORES[kind];
+  const pix = new Pix(128, 64);
+  const last = S.bands[S.bands.length - 1][0];
+  for (let py = 0; py < 64; py++) {
+    for (let px = 0; px < 128; px++) {
+      const [u, v] = tileUV(px, py);
+      if (!inTile(u, v)) continue;
+      const [dist, along] = edgeDist(part, u, v);
+      const d = dist - S.wobble * Math.sin(along * Math.PI * 6) - (part.length === 1 ? 0.01 : 0);
+      const band = S.bands.find((b) => d < b[0]);
+      if (band) pix.set(px, py, band[1], band[2] ?? 255);
+      else if (S.spray && d < last + 0.05 && hash2(px, py, 5) < 0.25) pix.set(px, py, 0xffffff, 140);
     }
   }
   return pix;

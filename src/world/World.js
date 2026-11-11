@@ -1,4 +1,4 @@
-import { MAP_SIZE, GROUND, SIDES, SIDE_LIST } from '../constants.js';
+import { MAP_SIZE, GROUND, GROUND_NAMES, SIDES, SIDE_LIST } from '../constants.js';
 import { BUILDINGS } from '../themes/catalog.js';
 import { generateMap } from './mapgen.js';
 
@@ -76,6 +76,25 @@ export class World {
     if (!this.tree[k]) return false;
     this.tree[k] = 0;
     this.clearedTrees.add(k);
+    return true;
+  }
+
+  // ---------- painting the ground ----------
+
+  // Water can't go under roads or buildings; anything else can go anywhere.
+  canPaint(i, j, g) {
+    if (!this.inBounds(i, j)) return false;
+    const k = this.idx(i, j);
+    return g !== GROUND.WATER || (!this.road[k] && !this.bldg[k]);
+  }
+
+  paintGround(i, j, g) {
+    if (!this.canPaint(i, j, g)) return false;
+    const k = this.idx(i, j);
+    if (this.ground[k] === g) return false;
+    this.ground[k] = g;
+    this.painted = true;
+    this.changed();
     return true;
   }
 
@@ -199,6 +218,8 @@ export class World {
     return {
       v: 1,
       seed: this.seed,
+      // the whole ground as one digit per square, once the player has painted it
+      ground: this.painted ? this.ground.join('') : undefined,
       roads,
       trees: [...this.clearedTrees],
       buildings: [...this.buildings.values()].map((b) => [b.type, b.x, b.y, b.rot]),
@@ -209,6 +230,13 @@ export class World {
   static fromData(data) {
     if (!data || data.v !== 1) return null;
     const w = new World(data.seed);
+    if (typeof data.ground === 'string' && data.ground.length === w.ground.length) {
+      for (let k = 0; k < w.ground.length; k++) {
+        const g = data.ground.charCodeAt(k) - 48;
+        if (g >= 0 && g < GROUND_NAMES.length) w.ground[k] = g;
+      }
+      w.painted = true;
+    }
     for (const k of data.trees || []) {
       w.tree[k] = 0;
       w.clearedTrees.add(k);

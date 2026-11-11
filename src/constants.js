@@ -23,8 +23,8 @@ export const DEPTH = {
   GHOST: 200000,
 };
 
-export const GROUND = { WATER: 0, SAND: 1, GRASS: 2 };
-export const GROUND_NAMES = ['water', 'sand', 'grass'];
+export const GROUND = { WATER: 0, SAND: 1, GRASS: 2, PAVEMENT: 3 };
+export const GROUND_NAMES = ['water', 'sand', 'grass', 'pavement'];
 
 // Sides of a square, named by where they point on screen.
 // ne = up-right, se = down-right, sw = down-left, nw = up-left.

@@ -11,6 +11,7 @@ const dpr = () => Math.min(window.devicePixelRatio || 1, 2);
 
 // Touch:  one finger = use the tool (drag the map with the Move tool),
 //         two fingers = pan and pinch-zoom.
+//         While a building waits for ✔ / ✖, one finger on it drags it and one finger beside it moves the map.
 // Mouse:  left = use the tool, right/middle drag = pan, wheel = zoom.
 export class Controls {
   constructor(scene) {
@@ -53,6 +54,11 @@ export class Controls {
       return;
     }
     const tool = this.scene.tool;
+    if (this.scene.pending && !this.scene.onPending(screenToWorld(this.cam, p.x, p.y))) {
+      // a building waits for ✔ / ✖: a finger beside it moves the map
+      this.pan = { x: p.x, y: p.y, moved: 0 };
+      return;
+    }
     if (tool === 'hand') {
       // a drag moves the map; a quick tap that barely moves picks up a building
       this.pan = { x: p.x, y: p.y, moved: 0, tap: true, t0: this.scene.time.now };

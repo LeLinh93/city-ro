@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { ART, roadTileName } from '../data/art.js';
 import { THEMES, themeCatalog } from '../themes/catalog.js';
 import {
-  genGround, genEdge, genRoadCenter, genRoadArm,
+  genGround, genEdge, genShore, genRoadCenter, genRoadArm,
   genPerson, genCar, genPlane, genPuff, genDust, genShadow,
 } from '../art/placeholders.js';
 
@@ -48,12 +48,14 @@ export class BootScene extends Phaser.Scene {
     for (let i = 0; i < v; i++) {
       L.image(`grass_${i}`, `${BASE}ground/grass_${i}.png`);
       L.image(`sand_${i}`, `${BASE}ground/sand_${i}.png`);
+      L.image(`pavement_${i}`, `${BASE}ground/pavement_${i}.png`);
       L.spritesheet(`water_${i}`, `${BASE}ground/water_${i}.png`, { frameWidth: ART.water.frameW, frameHeight: ART.water.frameH });
     }
     for (const p of EDGE_PARTS) {
       L.image(`edge_grass_${p}`, `${BASE}ground/edge_grass_${p}.png`);
-      L.image(`edge_foam_${p}`, `${BASE}ground/edge_foam_${p}.png`);
+      for (const k of ['foam', 'bank', 'quay']) L.image(`edge_${k}_${p}`, `${BASE}ground/edge_${k}_${p}.png`);
     }
+    for (const s of ['ne', 'se', 'sw', 'nw']) L.image(`edge_curb_${s}`, `${BASE}ground/edge_curb_${s}.png`);
     L.image('road_center', `${BASE}roads/road_center.png`);
     for (const s of ['ne', 'se', 'sw', 'nw']) L.image(`road_arm_${s}`, `${BASE}roads/road_arm_${s}.png`);
     for (let m = 0; m < 16; m++) L.image(roadTileName(m), `${BASE}roads/${roadTileName(m)}.png`);
@@ -95,6 +97,7 @@ export class BootScene extends Phaser.Scene {
     // Code-drawn grass is a checkerboard of a light and a dark square.
     const checker = !has('grass_0') || this.textures.get('grass_0').source[0].image instanceof HTMLCanvasElement;
     group('sand', 'sand', ART.groundVariants, (k, i) => addPix(this, k, genGround('sand', i)), 3);
+    group('pavement', 'pavement', ART.groundVariants, (k, i) => addPix(this, k, genGround('pavement', i)), 2);
     group('water', 'water', ART.groundVariants, (k, i) => addPix(this, k, genGround('water', i, 4), 128, 64), 2);
     group('person', 'person', ART.personVariants, (k, i) => addPix(this, k, genPerson(i), 32, 48), 5);
     group('car', 'car', ART.carVariants, (k, i) => addPix(this, k, genCar(i), 64, 48), 4);
@@ -106,7 +109,9 @@ export class BootScene extends Phaser.Scene {
         if (checker) addPix(this, `edge_grass_${p}_1`, genEdge('grass', p, 1));
       }
       if (!has(`edge_foam_${p}`)) addPix(this, `edge_foam_${p}`, genEdge('foam', p));
+      for (const k of ['bank', 'quay']) if (!has(`edge_${k}_${p}`)) addPix(this, `edge_${k}_${p}`, genShore(k, p));
     }
+    for (const s of ['ne', 'se', 'sw', 'nw']) if (!has(`edge_curb_${s}`)) addPix(this, `edge_curb_${s}`, genShore('curb', s));
     if (!has('road_center')) addPix(this, 'road_center', genRoadCenter());
     for (const s of ['ne', 'se', 'sw', 'nw']) if (!has(`road_arm_${s}`)) addPix(this, `road_arm_${s}`, genRoadArm(s));
     if (!has('police_car')) addPix(this, 'police_car', genCar(0, true), 64, 48);

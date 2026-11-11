@@ -96,7 +96,7 @@ Corners: `n` = top, `e` = right, `s` = bottom, `w` = left.
 
 ## Ground (`assets/ground/`)
 
-Grass, sand, water and roads are drawn by code (grass is a light and dark checkerboard). You only need these
+Grass, sand, water, pavement and roads are drawn by code (grass is a light and dark checkerboard). You only need these
 files if you want to replace that look.
 
 | File | Size | Notes |
@@ -107,6 +107,10 @@ files if you want to replace that look.
 | `edge_grass_ne/se/sw/nw.png` | 128 × 64 | Grass spilling onto a sand square from that side. |
 | `edge_grass_n/e/s/w.png` | 128 × 64 | Same, for a single corner. |
 | `edge_foam_ne/se/sw/nw.png`, `edge_foam_n/e/s/w.png` | 128 × 64 | Foam on a water square next to the beach. |
+| `pavement_0.png` … `pavement_3.png` | 128 × 64 | Paving for the Plot tool. |
+| `edge_bank_ne/se/sw/nw.png`, `edge_bank_n/e/s/w.png` | 128 × 64 | Grassy bank on a water square next to grass. |
+| `edge_quay_ne/se/sw/nw.png`, `edge_quay_n/e/s/w.png` | 128 × 64 | Stone quay on a water square next to pavement. |
+| `edge_curb_ne/se/sw/nw.png` | 128 × 64 | Kerb on a pavement square next to grass or sand (sides only). |
 
 ## Roads (`assets/roads/`)
 
