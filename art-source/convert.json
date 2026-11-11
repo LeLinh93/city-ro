@@ -1,0 +1,6 @@
+{
+  "jobs": [
+    { "from": "shops.webp", "crop": [0, 60, 512, 470], "to": "buildings/house.png" },
+    { "from": "shops.webp", "crop": [0, 530, 512, 494], "to": "buildings/longhouse.png" }
+  ]
+}
