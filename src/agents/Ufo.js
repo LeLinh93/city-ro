@@ -13,7 +13,7 @@ const SPEED_SQ = 0.45; // squares per second
 const LASER_EVERY = [6000, 9500]; // ms between laser shots
 const LASER_CHARGE = 900; // ms of glowing before the beam
 const LASER_BEAM = 700; // ms the beam is on
-const BOTTOM = 0.2; // the saucer's underside, below its middle, as a part of the picture's height
+const BOTTOM = 0.47; // the saucer's bottom lip, below its middle, as a part of the picture's height
 const ZAP_EVERY = 20000; // ms between shots of the small side laser, which destroys one tank or plane nearby
 const ZAP_RANGE = 1100; // px from the UFO
 const ZAP_MS = 400; // how long the small beam shows
@@ -35,8 +35,9 @@ const TANK_RANGE = 9; // squares from the point under the UFO
 const TANK_RELOAD = 5000;
 const SILO_RELOAD = 30000;
 const SHIP_RELOAD = 20000;
+const SHIP_SALVO = 5; // rockets a destroyer or carrier fires at a time
 const SHIP_TYPES = ['destroyer', 'aircraftcarrier'];
-const SORTIE_REST = 30000; // ms a plane or helicopter waits at the airport between attacks
+const SORTIE_REST = 20000; // ms a plane or helicopter waits at the airport between attacks
 // salvo: what it fires on each attack, in order: [kind, how many, ms between them]
 const PLANES = {
   fighterjet: { speed: 380, alt: ALT, salvo: [['bullet', 20, 90], ['rocket', 2, 350]] }, // a strafing run
@@ -393,8 +394,14 @@ export class Ufo {
           continue;
         }
         if (time < this.reload.get(s)) continue;
-        const p = toWorld(s.x, s.y);
-        this.fire('rocket', { x: p.x, y: p.y - 50 }, time);
+        // a salvo: SHIP_SALVO rockets one after another, from along the deck
+        for (let k = 0; k < SHIP_SALVO; k++) {
+          this.scene.time.delayedCall(k * 180, () => {
+            if (!this.active || !s.v.im.active) return; // the UFO or the ship is gone
+            const p = toWorld(s.x, s.y);
+            this.fire('rocket', { x: p.x + rand(-50, 50), y: p.y - 50 + rand(-10, 10) }, this.scene.time.now);
+          });
+        }
         this.reload.set(s, time + SHIP_RELOAD);
       }
     }
