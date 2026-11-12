@@ -37,6 +37,7 @@ export class GameScene extends Phaser.Scene {
     this.views = new Map();
     this.tool = 'hand';
     this.rot = 0;
+    this.paintMode = 'brush'; // Plot and Decoration: 'brush' (square by square) or 'area' (drag a rectangle)
     this.pending = null; // building waiting for ✔ / ✖: { type, x, y, moving? }
     this.lastHover = null;
     this.saveTimer = null;
@@ -50,7 +51,7 @@ export class GameScene extends Phaser.Scene {
     this.ships = new Ships(this, world);
     this.services = new Services(this, world, this.traffic);
     this.people = new People(this, world, this.pf);
-    this.disasters = new Disasters(this, world, { people: this.people, traffic: this.traffic });
+    this.disasters = new Disasters(this, world, { people: this.people, traffic: this.traffic, services: this.services });
     this.ghost = new Ghost(this);
 
     world.on('building-added', (b, silent) => {
@@ -134,6 +135,9 @@ export class GameScene extends Phaser.Scene {
     } else if (this.tool === 'bulldoze') {
       this.bulldoze(sq);
       this.ghost.showSquares([sq], false);
+    } else if ((paintGround(this.tool) !== null || decoType(this.tool)) && this.paintMode === 'area') {
+      action.area = { from: sq, to: sq };
+      this.showArea(action.area);
     } else if (paintGround(this.tool) !== null) {
       action.painted = [];
       this.paint(sq, action);
@@ -151,6 +155,9 @@ export class GameScene extends Phaser.Scene {
     else if (this.tool === 'bulldoze') {
       this.bulldoze(sq);
       this.ghost.showSquares([sq], false);
+    } else if (action.area) {
+      action.area.to = sq;
+      this.showArea(action.area);
     } else if (action.painted) {
       this.paint(sq, action);
     } else if (action.placed) {
@@ -161,7 +168,52 @@ export class GameScene extends Phaser.Scene {
   }
 
   toolUp(sq, action) {
+    if (action.area) {
+      this.fillArea(action.area);
+      this.ghost.hide();
+      return;
+    }
     if (action.touch && !BUILDINGS[this.tool]) this.ghost.hide();
+  }
+
+  // ---------- area mode: a rectangle of squares, filled when the finger lifts ----------
+
+  rect({ from, to }) {
+    const x0 = Math.max(0, Math.min(from[0], to[0]));
+    const y0 = Math.max(0, Math.min(from[1], to[1]));
+    const x1 = Math.min(this.world.size - 1, Math.max(from[0], to[0]));
+    const y1 = Math.min(this.world.size - 1, Math.max(from[1], to[1]));
+    return { x0, y0, x1, y1 };
+  }
+
+  showArea(area) {
+    const r = this.rect(area);
+    this.ghost.hide();
+    this.ghost.drawOutline(r.x0, r.y0, r.x1 - r.x0 + 1, r.y1 - r.y0 + 1, true);
+  }
+
+  fillArea(area) {
+    const r = this.rect(area);
+    const w = this.world;
+    const g = paintGround(this.tool);
+    if (g !== null) {
+      let any = false;
+      for (let j = r.y0; j <= r.y1; j++) for (let i = r.x0; i <= r.x1; i++) any = w.paintGround(i, j, g, { quiet: true }) || any;
+      if (any) w.changed();
+      return;
+    }
+    // decorations: put one on every free spot, keeping inside the rectangle
+    const type = decoType(this.tool);
+    if (!type) return;
+    const def = BUILDINGS[type];
+    for (let j = r.y0; j <= r.y1; j++) {
+      for (let i = r.x0; i <= r.x1; i++) {
+        const rot = def.w === def.d && Math.random() < 0.5 ? 1 : 0;
+        const f = w.footprint(type, rot);
+        if (i + f.w - 1 > r.x1 || j + f.d - 1 > r.y1) continue;
+        if (w.canPlaceBuilding(type, i, j, rot)) w.addBuilding(type, i, j, rot);
+      }
+    }
   }
 
   toolCancel(action, young) {
@@ -230,6 +282,7 @@ export class GameScene extends Phaser.Scene {
 
   // A quick tap with the Move tool: pick up the building under the finger to move it.
   handTap(sq) {
+    if (this.disasters.tap(sq)) return; // aiming the meteor
     if (this.tool !== 'hand' || this.pending) return;
     const b = this.buildingUnderPointer() || this.world.buildingAt(...sq);
     if (!b || b.ruined || this.disasters.busy) return; // ruins can be repaired or removed, not moved

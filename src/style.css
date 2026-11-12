@@ -373,6 +373,22 @@ body.in-menu #hud {
   background: var(--active);
 }
 
+/* Brush / Area at the front of the Plot and Decoration menus */
+.item.mode {
+  width: 72px;
+  background: rgba(30, 50, 80, 0.12);
+}
+
+.item.mode .big {
+  width: 60px;
+  font-size: 36px;
+}
+
+.item.mode.active {
+  background: var(--active);
+  box-shadow: inset 0 0 0 2px rgba(30, 50, 80, 0.35);
+}
+
 .item img {
   width: 88px;
   height: 80px;

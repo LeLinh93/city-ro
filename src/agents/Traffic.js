@@ -79,7 +79,8 @@ export class Traffic {
       const dy = o.mover.py - m.py;
       const along = dx * m.dir[0] + dy * m.dir[1];
       const side = Math.abs(-dx * m.dir[1] + dy * m.dir[0]);
-      if (along > 0.05 && along < 0.62 && side < 0.14) {
+      // long vehicles (buses, trucks) keep more room
+      if (along > 0.05 && along < (c.len + o.len) / 2 + 0.1 && side < 0.14) {
         c.wait = (c.wait || 0) + dt;
         if (c.wait < 1.2) return true;
       }
@@ -93,7 +94,8 @@ export class Traffic {
     const v = vehicleSprite(this.scene, id, { key: fallbackKey, origin: ART.vehicleOrigin });
     v.im.setAlpha(0);
     this.scene.tweens.add({ targets: v.im, alpha: 1, duration: 300 });
-    const car = { kind, v, sprite: v.im };
+    // about how long the vehicle is, in squares (a picture (L + W) x 64 px wide, W about 0.3)
+    const car = { kind, v, sprite: v.im, len: Math.max(0.5, v.im.width / 64 - 0.3) };
     car.mover = new Mover(x, y, { speed, lane: LANE_OFFSET, onRoad, onNeed: () => this.next(car) });
     this.cars.push(car);
     return car;
@@ -134,7 +136,7 @@ export class Traffic {
   }
 
   spawnPatrol(st, slot) {
-    const car = this.leave('service', st.b, st.p.vehicle, SPEED.police);
+    const car = this.leave('service', st.b, st.p.vehicle, SPEED.police * (st.p.speed || 1));
     if (!car) return false;
     car.slot = st.slots.indexOf(slot);
     car.mode = 'patrol';

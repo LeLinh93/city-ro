@@ -37,12 +37,13 @@ In a city, 🏠 (top right) saves and goes back to the menu.
 | 🖌️ Plot | Pick grass, sand, water or pavement, then tap or drag to paint the ground. Water can't go under roads or buildings. |
 | 🏠 🏪 🏥 🗼 ✈️ … | Opens that group's buildings in one row (swipe sideways for more). Tap one (it appears in the middle) or drag it up onto the map. |
 | 🌳 Decoration | Works like Plot: pick one, then tap or drag on the map to put them down. The menu stays open until you tap 🌳 again. |
-| ⚡ Disaster | 🏚️ Earthquake, 🌪️ Tornado or 🌊 Tsunami ruins buildings. While it lasts, the build bar is locked and buildings can't be picked up (looking around and zooming still work); the red ⏹ Stop disaster button at the top middle ends it straight away. |
-| 🔧 Repair | Fixes every ruined building. |
+| ⚡ Disaster | 🏚️ Earthquake, 🌪️ Tornado, 🌊 Tsunami or ☄️ Meteor ruins buildings. While it lasts, the build bar is locked and buildings can't be picked up (looking around and zooming still work); the red ⏹ Stop disaster button at the top middle ends it straight away. |
+| 🔧 Repair | Fixes every ruined building and puts out every fire. |
 | 🚜 Remove | Tap or drag over roads and buildings. Tap Remove again to go back to Move. |
 
 Tapping the button of the menu that is open closes it and goes back to ✋ Move. The Plot menu also stays open
-while you paint.
+while you paint. Plot and Decoration start with two modes: 🖌️ Brush (tap or drag, square by square) and
+🔲 Area (drag a rectangle; it is filled when you let go, and decorations only go on free spots).
 
 While a building waits to be built, drag it around (green = OK, red = blocked). Dragging beside it moves the
 map, and pinching still zooms. Then:
@@ -60,6 +61,11 @@ Disasters (one at a time):
   and sucks up people and cars, then leaves.
 - 🌊 Tsunami: one huge wave from the side with the most sea. It ruins buildings in its way and gets smaller
   over land, stopping after about 30 squares.
+- ☄️ Meteor: tap where it should hit. A giant meteor crashes down and ruins everything in the 15 × 15 squares
+  around that spot; buildings in the 25 × 25 squares around it catch fire. Fire stations send their
+  helicopters (one fire each) and trucks (two per station, if a road leads there). A disaster's fires go out
+  faster (4 s with a helicopter, 1.5 s with a truck as well), but a building left burning for 75 s is ruined.
+  While a disaster or its fires are going on, fire stations don't start fires of their own.
 
 A ruined building keeps its place but stops working (no people, patrols, helicopters, planes, ships or fires)
 until 🔧 Repair. Ruins can't be moved, but 🚜 Remove clears them.
@@ -67,8 +73,10 @@ until 🔧 Repair. Ruins can't be moved, but 🚜 Remove clears them.
 What moves on its own:
 - People walk out of doors, use sidewalks (or cut across grass), and walk into other buildings.
 - Cars drive on the right-hand lane of every road and queue behind each other.
-- Police cars and the ambulance leave their building, patrol, and come home. This needs a road touching
-  the garage side (police, fire station) or the door (hospital).
+- Police cars, the ambulance, taxis (taxi center), the bus (bus stop), mail vans (post office) and garbage
+  trucks (recycling plant) leave their building, drive around, and come home. This needs a road touching
+  the garage side (police, fire station) or the door (the others).
+- The factory's chimneys smoke and the nuclear plant's cooling tower lets off steam.
 - Helicopters on the police station, hospital and fire station roofs take off now and then. The police
   helicopter shines a light on a building; the hospital helicopter makes a short flight.
 - Every few minutes a building near a fire station catches fire. The fire helicopter sprays water on it and

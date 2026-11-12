@@ -4,11 +4,12 @@ import { pick, rand } from '../rng.js';
 
 // Earthquake, tornado and tsunami. Only one at a time. Ruined buildings stay ruined until Repair.
 export class Disasters {
-  constructor(scene, world, { people, traffic }) {
+  constructor(scene, world, { people, traffic, services }) {
     this.scene = scene;
     this.world = world;
     this.people = people;
     this.traffic = traffic;
+    this.services = services;
     this.current = null;
     this.draw = scene.add.graphics().setDepth(DEPTH.AIR - 3);
   }
@@ -17,9 +18,16 @@ export class Disasters {
     return !!this.current;
   }
 
+  // The meteor waits for a tap on the map: returns true if the tap was used for it.
+  tap(sq) {
+    if (!this.current?.aiming) return false;
+    this.current.aim(sq[0] + 0.5, sq[1] + 0.5);
+    return true;
+  }
+
   start(kind) {
     if (this.current) return false;
-    const make = { earthquake: Earthquake, tornado: Tornado, tsunami: Tsunami }[kind];
+    const make = { earthquake: Earthquake, tornado: Tornado, tsunami: Tsunami, meteor: Meteor }[kind];
     if (!make) return false;
     this.current = new make(this);
     this.scene.events.emit('disaster', true);
@@ -36,9 +44,10 @@ export class Disasters {
     return true;
   }
 
-  // Fix every ruined building.
+  // Fix every ruined building and put out every fire.
   repair() {
     if (this.current) return -1;
+    this.services.extinguishAll();
     return this.world.repairAll();
   }
 
@@ -460,5 +469,129 @@ class Tsunami {
       }
       if (Math.random() < 0.12 * Math.min(1, h / 60)) this.spray.emitParticleAt(c1.x + rand(-8, 8), c1.y, 1);
     }
+  }
+}
+
+// ---------- meteor ----------
+
+const FALL_MS = 1700; // from the sky to the ground
+const METEOR_R = 75; // size of the rock, px
+const RUIN_SIZE = 15; // squares: everything in this square around the impact is ruined
+const FIRE_SIZE = 25; // squares: buildings in this square around the impact catch fire
+const FIRE_BURN_OUT = 75000; // ms: a fire nobody puts out by then ruins its building
+
+class Meteor {
+  constructor(d) {
+    this.d = d;
+    this.state = 'aim';
+    this.smoke = d.scene.add.particles(0, 0, 'fx_smoke', {
+      lifespan: { min: 900, max: 1600 }, speed: { min: 5, max: 25 }, tint: 0x3a3330,
+      scale: { start: 3, end: 7 }, alpha: { start: 0.7, end: 0 }, emitting: false,
+    }).setDepth(DEPTH.AIR - 4);
+  }
+
+  get aiming() {
+    return this.state === 'aim';
+  }
+
+  // Where it will hit, in squares. It comes in from high up on the right.
+  aim(x, y) {
+    this.x = x;
+    this.y = y;
+    this.hit = toWorld(x, y);
+    this.from = { x: this.hit.x + 1100, y: this.hit.y - 1700 };
+    this.state = 'fall';
+    this.t0 = this.d.scene.time.now;
+  }
+
+  update(time) {
+    if (this.state === 'aim') return false;
+    const t = (time - this.t0) / FALL_MS;
+    if (this.state === 'fall' && t >= 1) this.impact(time);
+    this.render(time);
+    if (this.state === 'after' && time - this.t1 > 1600) {
+      this.smoke.destroy();
+      return true;
+    }
+    return false;
+  }
+
+  impact(time) {
+    const d = this.d;
+    const w = d.world;
+    this.state = 'after';
+    this.t1 = time;
+    d.scene.cameras.main.shake(1300, 0.018, true);
+    // everything in the 15 x 15 square is ruined, people and cars there are gone
+    const half = RUIN_SIZE / 2;
+    const inside = (b, h) => b.x < this.x + h && b.x + b.w > this.x - h && b.y < this.y + h && b.y + b.d > this.y - h;
+    for (const b of [...w.buildings.values()]) if (inside(b, half)) w.ruinBuilding(b);
+    for (const t of d.near(this.x, this.y, half * 1.2)) {
+      const sprite = d.take(t);
+      if (sprite) d.scene.tweens.add({ targets: sprite, alpha: 0, duration: 300, onComplete: () => sprite.destroy() });
+    }
+    // buildings in the 25 x 25 square around it catch fire
+    for (const b of w.buildings.values()) if (!b.ruined && inside(b, FIRE_SIZE / 2)) d.services.ignite(b, time, FIRE_BURN_OUT);
+    // dust and smoke over the whole hit area
+    for (let k = 0; k < 40; k++) {
+      const p = toWorld(this.x + rand(-half, half), this.y + rand(-half, half));
+      this.smoke.emitParticleAt(p.x, p.y - 20, 1);
+    }
+  }
+
+  stop() {
+    this.smoke.destroy();
+  }
+
+  render(time) {
+    const g = this.d.draw;
+    g.clear();
+    const hit = this.hit;
+    if (this.state === 'fall') {
+      const t = Math.min(1, (time - this.t0) / FALL_MS);
+      const k = t * t; // speeding up
+      const x = this.from.x + (hit.x - this.from.x) * k;
+      const y = this.from.y + (hit.y - this.from.y) * k;
+      const dx = hit.x - this.from.x;
+      const dy = hit.y - this.from.y;
+      const len = Math.hypot(dx, dy);
+      const ux = dx / len;
+      const uy = dy / len;
+      // its shadow on the ground, getting darker as it comes closer
+      g.fillStyle(0x000000, 0.12 + 0.3 * t);
+      g.fillEllipse(hit.x, hit.y, METEOR_R * (1 + t) * 2.2, METEOR_R * (1 + t) * 0.9);
+      // the burning tail
+      const tail = 420 + 300 * t;
+      const tx = x - ux * tail;
+      const ty = y - uy * tail;
+      for (const [r, col, al] of [[1.5, 0xff6a18, 0.45], [1.05, 0xffa33a, 0.6], [0.6, 0xffe08a, 0.75]]) {
+        g.fillStyle(col, al);
+        g.fillTriangle(x - uy * METEOR_R * r, y + ux * METEOR_R * r, x + uy * METEOR_R * r, y - ux * METEOR_R * r, tx, ty);
+      }
+      // glow and rock
+      g.fillStyle(0xff8a2a, 0.5);
+      g.fillCircle(x, y, METEOR_R * 1.45);
+      g.fillStyle(0x4f3627, 1);
+      g.fillCircle(x, y, METEOR_R);
+      g.fillStyle(0x6e4d38, 1);
+      g.fillCircle(x - METEOR_R * 0.25, y - METEOR_R * 0.25, METEOR_R * 0.55);
+      g.fillStyle(0x3a281d, 1);
+      g.fillCircle(x + METEOR_R * 0.3, y + METEOR_R * 0.15, METEOR_R * 0.2);
+      g.fillCircle(x - METEOR_R * 0.35, y + METEOR_R * 0.35, METEOR_R * 0.13);
+      g.fillStyle(0xffc060, 0.9); // glowing front edge
+      g.fillCircle(x + ux * METEOR_R * 0.55, y + uy * METEOR_R * 0.55, METEOR_R * 0.35);
+      if (Math.random() < 0.7) this.smoke.emitParticleAt(x - ux * METEOR_R, y - uy * METEOR_R, 1);
+      return;
+    }
+    // the impact: a flash and a ring of dust racing outwards
+    const t = Math.min(1, (time - this.t1) / 1600);
+    const flashR = 900 * Math.min(1, t * 3);
+    g.fillStyle(0xfff3c4, 0.85 * Math.max(0, 1 - t * 2.2));
+    g.fillEllipse(hit.x, hit.y, flashR * 2, flashR);
+    const ringR = (RUIN_SIZE / 2) * 64 * 1.5 * t;
+    g.lineStyle(26 * (1 - t) + 2, 0xd8c7a8, 0.8 * (1 - t));
+    g.strokeEllipse(hit.x, hit.y, ringR * 2, ringR);
+    g.fillStyle(0xff7a1a, 0.6 * (1 - t));
+    g.fillEllipse(hit.x, hit.y, 260 * (1 - t * 0.5), 120 * (1 - t * 0.5));
   }
 }

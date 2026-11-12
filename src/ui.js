@@ -14,7 +14,11 @@ const HINTS = {
   earthquake: 'Earthquake!',
   tornado: 'A tornado is coming!',
   tsunami: 'Tsunami! A huge wave is coming from the sea.',
+  meteor: 'Tap on the map where the meteor should hit.',
   busy: 'Wait until this disaster is over.',
+  brush: 'Brush: tap or drag to do one square at a time.',
+  area: 'Area: drag a rectangle on the map. It is filled when you let go.',
+  areaDeco: 'Area: drag a rectangle on the map. Every free spot in it is filled when you let go.',
   placing: 'Drag the building to move it, or drag beside it to look around. ✔ builds it, 🔄 turns it, ✖ cancels.',
 };
 
@@ -25,11 +29,18 @@ const PAINTS = [
   { paint: 'water', name: 'Water', texture: 'water_0' },
   { paint: 'pavement', name: 'Pavement', texture: 'pavement_0' },
 ];
+// At the front of the Plot and Decoration menus: how to put things down.
+const MODES = [
+  { mode: 'brush', name: 'Brush', icon: '🖌️' },
+  { mode: 'area', name: 'Area', icon: '🔲' },
+];
+
 // The Disaster menu: actions that happen straight away.
 const DISASTERS = [
   { action: 'earthquake', name: 'Earthquake', icon: '🏚️' },
   { action: 'tornado', name: 'Tornado', icon: '🌪️' },
   { action: 'tsunami', name: 'Tsunami', icon: '🌊' },
+  { action: 'meteor', name: 'Meteor', icon: '☄️' },
 ];
 
 const isPaint = (id) => typeof id === 'string' && id.startsWith('paint:');
@@ -181,7 +192,8 @@ export class UI {
     for (const [k, b] of this.buttons) b.classList.toggle('active', k === key || k === this.openMenu);
     for (const item of this.sub.children) {
       const d = item.def;
-      item.classList.toggle('active', !!d && (id === `paint:${d.paint}` || id === `deco:${d.id}`));
+      item.classList.toggle('active', !!d && (id === `paint:${d.paint}` || id === `deco:${d.id}`
+        || (!!d.mode && d.mode === this.scene?.paintMode)));
     }
   }
 
@@ -200,9 +212,9 @@ export class UI {
     this.openMenu = key;
     this.painter = !!painter;
     this.sub.textContent = '';
-    for (const def of items) {
+    for (const def of painter ? [...MODES, ...items] : items) {
       const item = document.createElement('button');
-      item.className = 'item';
+      item.className = def.mode ? 'item mode' : 'item';
       let pic;
       if (def.icon) {
         pic = document.createElement('span');
@@ -219,7 +231,7 @@ export class UI {
       name.textContent = def.name;
       const size = document.createElement('span');
       size.className = 'size';
-      size.textContent = def.paint || def.action ? '' : `${def.w}×${def.d}`;
+      size.textContent = def.paint || def.action || def.mode ? '' : `${def.w}×${def.d}`;
       item.append(pic, name, size);
       item.def = def;
       this.sub.appendChild(item);
@@ -254,6 +266,12 @@ export class UI {
 
   // Tapped a menu item.
   pick(def) {
+    if (def.mode) {
+      this.scene.paintMode = def.mode;
+      this.highlight(this.scene.tool);
+      this.showHint(def.mode === 'brush' ? HINTS.brush : this.openMenu === 'plot' ? HINTS.area : HINTS.areaDeco);
+      return;
+    }
     if (def.action) {
       this.select('hand', false);
       this.showHint(this.scene.disasters.start(def.action) ? HINTS[def.action] : HINTS.busy);
@@ -287,7 +305,7 @@ export class UI {
       const dy = e.clientY - d.y0;
       if (Math.hypot(dx, dy) < DRAG_START) return;
       const up = dy < 0 && -dy >= Math.abs(dx) * 0.7;
-      if (!d.def || d.def.paint || d.def.action || this.painter || !up) {
+      if (!d.def || d.def.paint || d.def.action || d.def.mode || this.painter || !up) {
         d.scroll = this.sub.scrollLeft + dx; // so the menu doesn't jump by the first few pixels
         this.sub.scrollLeft = d.scroll - dx;
         return;

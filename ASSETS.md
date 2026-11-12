@@ -163,6 +163,7 @@ Changing a width in `src/data/vehicles.js` and running `npm run art` again re-ma
 | `car-sheet-blue/green/red/white/yellow.png` | Traffic (a random colour for each car). |
 | `police-sheet.png`, `ambulance-sheet.png` | Patrols from the police station and the hospital. |
 | `firetruck-sheet.png` | Drives to fires from the fire station. |
+| `taxi-sheet.png`, `bus-sheet.png`, `mailvan-sheet.png`, `garbagetruck-sheet.png` | From the taxi center, bus stop, post office and recycling plant. |
 | `helicopter-sheet-police/fire/hospital.png` | Helicopters on those roofs. |
 | `airplane-sheet.png` | Airport planes. |
 | `containership-sheet.png`, `cruiseship-sheet.png` | Ships of the container dock and the passenger dock. |

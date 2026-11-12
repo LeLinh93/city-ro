@@ -43,7 +43,10 @@ export class Services {
       if (h) this.removeHeli(h);
       this.helis.delete(b.id);
       this.stations.delete(b.id);
-      for (const f of this.fires.values()) if (f.b === b || f.station === b.id) this.endFire(f, true);
+      for (const f of [...this.fires.values()]) {
+        if (f.b === b) this.endFire(f, true);
+        else if (f.heli?.b === b) f.heli = null; // its helicopter is gone: another one may come
+      }
     });
   }
 
@@ -113,7 +116,7 @@ export class Services {
     h.cruise = Math.max(CRUISE, alt);
     h.hoverMs = hoverMs;
     h.job = job;
-    h.state = 'up';
+    h.state = h.state === 'parked' || h.state === 'down' ? 'up' : 'go'; // already flying: straight there
   }
 
   startTrip(h) {
@@ -173,7 +176,7 @@ export class Services {
         break;
       case 'hover':
         climbTo(h.cruise);
-        if (!h.job.fire && time > h.until) h.state = 'home';
+        if (!h.job?.fire && time > h.until) h.state = 'home';
         break;
       case 'home':
         climbTo(Math.max(CRUISE, h.roof + 50));
@@ -209,13 +212,21 @@ export class Services {
 
   // ---------- fires ----------
 
+  // Now and then a building near a fire station catches fire by itself.
   startFire(st, time) {
     const { b } = st;
     const busy = this.helis.get(b.id);
     if (busy && busy.state !== 'parked') return false;
     const list = this.near(b, b.def.fire.radius, (o) => !o.def.fire && o.def.menu !== 'Decoration' && !this.fires.has(o.id));
     if (!list.length) return false;
-    const t = pick(list);
+    this.ignite(pick(list), time);
+    return true;
+  }
+
+  // Set building t on fire. burnOut (ms): if nobody has put it out by then, the building is ruined.
+  // Without burnOut a fire nobody comes to just goes out after a while.
+  ignite(t, time, burnOut = null) {
+    if (this.fires.has(t.id) || t.ruined) return null;
     const c = this.center(t);
     const place = footprintPlacement(t.x, t.y, t.w, t.d);
     const h = c.y - c.top;
@@ -230,35 +241,70 @@ export class Services {
       scale: { start: 1.2, end: 3.5 }, alpha: { start: 0.55, end: 0 }, tint: 0x555555, frequency: 160,
       emitZone: { type: 'random', source: new Phaser.Geom.Rectangle(zone.x, zone.y - 10, zone.w, zone.h * 0.5) },
     }).setDepth(DEPTH.AIR - 6);
-    const fire = { b: t, station: b.id, flames, smoke, health: 1, c, started: time };
+    const fire = { b: t, flames, smoke, health: 1, c, top: h, started: time, burnOut, heli: null, truck: null, truckAt: 0 };
     this.fires.set(t.id, fire);
+    this.dispatch(time);
+    return fire;
+  }
 
-    const heli = this.helis.get(b.id);
-    if (heli) this.sendHeli(heli, { x: c.x, y: c.y }, h + 70, 0, { fire });
-    fire.truck = this.traffic.dispatch(b, t, b.def.fire.vehicle);
-    return true;
+  // Send fire fighters to fires that have none: the nearest free fire helicopter (one fire each), and a
+  // truck from the nearest fire station that has one to spare (two out at a time per station).
+  dispatch(time) {
+    const dist = (b, f) => Math.hypot(b.x + b.w / 2 - (f.b.x + f.b.w / 2), b.y + b.d / 2 - (f.b.y + f.b.d / 2));
+    for (const f of this.fires.values()) {
+      if (!f.heli) {
+        let best = null;
+        for (const h of this.helis.values()) {
+          if (h.cfg.job !== 'fire' || !['parked', 'home', 'down'].includes(h.state) || h.job?.fire) continue;
+          if (!best || dist(h.b, f) < dist(best.b, f)) best = h;
+        }
+        if (best) {
+          this.sendHeli(best, { x: f.c.x, y: f.c.y }, f.top + 70, 0, { fire: f });
+          f.heli = best;
+        }
+      }
+      if ((!f.truck || f.truck.gone) && time >= f.truckAt) {
+        f.truck = null;
+        f.truckAt = time + 6000; // if no truck can come now, try again in a while
+        const stations = [...this.stations.values()].sort((a, b) => dist(a.b, f) - dist(b.b, f));
+        for (const st of stations) {
+          const out = this.traffic.cars.filter((c) => c.kind === 'truck' && c.station === st.b.id && !c.gone).length;
+          if (out >= 2) continue;
+          const car = this.traffic.dispatch(st.b, f.b, st.b.def.fire.vehicle);
+          if (car) {
+            f.truck = car;
+            break;
+          }
+        }
+      }
+    }
   }
 
   stepFire(f, time, dt) {
-    const heli = this.helis.get(f.station);
+    const heli = f.heli;
     if (heli && heli.state === 'hover' && heli.job?.fire === f) {
-      f.health -= dt / 16; // the helicopter alone needs 16 s
+      // the helicopter alone needs 16 s (4 s for a disaster's fires, so the city is saved in time)
+      f.health -= dt / (f.burnOut !== null ? 4 : 16);
       this.drops.emitParticleAt(heli.x + rand(-10, 10), heli.y - heli.alt + 12, 3);
     }
     const truck = f.truck;
     if (truck && truck.mode === 'wait' && !truck.gone) {
-      f.health -= dt / 10; // together with the truck about 6 s
+      f.health -= dt / (f.burnOut !== null ? 2.4 : 10); // together with the truck about 6 s (1.5 s for a disaster's fires)
       // aim so the water lands on the building half way up, 0.55 s after leaving the hose
       const p = toWorld(truck.mover.px, truck.mover.py);
       const T = 0.55;
       const dx = f.c.x - p.x;
-      const dy = f.c.y - (f.c.y - f.c.top) * 0.5 - (p.y - 16);
+      const dy = f.c.y - f.top * 0.5 - (p.y - 16);
       this.jetV.x = dx / T;
       this.jetV.y = dy / T - 0.5 * JET_G * T;
       this.jet.emitParticleAt(p.x, p.y - 16, 2);
     }
-    // nobody can come: it burns out by itself
-    if (!heli && !truck && time - f.started > 15000) f.health = 0;
+    if (f.burnOut !== null) {
+      // left burning too long: the building is ruined (which also ends the fire)
+      if (time - f.started > f.burnOut && f.health > 0) this.world.ruinBuilding(f.b);
+    } else if (!heli && !truck && time - f.started > 15000) {
+      f.health = 0; // nobody can come: it burns out by itself
+    }
     if (f.health <= 0) this.endFire(f);
   }
 
@@ -272,20 +318,32 @@ export class Services {
       f.flames.destroy();
       f.smoke.destroy();
     });
-    const heli = this.helis.get(f.station);
-    if (heli && heli.job?.fire === f && heli.state !== 'parked' && heli.state !== 'down') heli.state = 'home';
-    if (f.truck) this.traffic.recall(f.truck);
+    const heli = f.heli;
+    if (heli && heli.job?.fire === f) {
+      heli.job = null;
+      if (heli.state !== 'parked' && heli.state !== 'down') heli.state = 'home'; // may be sent to the next fire
+    }
+    if (f.truck && !f.truck.gone) this.traffic.recall(f.truck);
+  }
+
+  // Put out every fire at once (Repair).
+  extinguishAll() {
+    for (const f of [...this.fires.values()]) this.endFire(f, true);
   }
 
   // ---------- every frame ----------
 
   update(time, dt) {
+    // no fires of their own while a disaster is going on or its fires are still burning
+    const calm = !this.scene.disasters?.busy && ![...this.fires.values()].some((f) => f.burnOut !== null);
     for (const st of this.stations.values()) {
-      if (time > st.next) {
+      if (!calm) st.next = Math.max(st.next, time + 20000);
+      else if (time > st.next) {
         const ok = this.startFire(st, time);
         st.next = time + (ok ? rand(...st.b.def.fire.every) : 20000);
       }
     }
+    if (this.fires.size) this.dispatch(time);
     for (const f of [...this.fires.values()]) this.stepFire(f, time, dt);
     for (const h of this.helis.values()) this.stepHeli(h, time, dt);
     this.drawLights(time);

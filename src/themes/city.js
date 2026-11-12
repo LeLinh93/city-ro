@@ -37,6 +37,11 @@ export const CITY = {
     firestation: 'Fire station',
     highschool: 'High school',
     clothesstore: 'Clothes store',
+    taxicenter: 'Taxi center',
+    busstop: 'Bus stop',
+    postoffice: 'Post office',
+    recycleplant: 'Recycling plant',
+    nuclearreactor: 'Nuclear plant',
   },
 
   // Extra settings for single buildings, by file name (without the size).
@@ -46,7 +51,7 @@ export const CITY = {
   //
   // Vehicles (pictures in src/data/vehicles.js):
   // patrol    : cars that leave the garage (or the door), drive around and come back.
-  //             count = how many at once, rest = [min, max] ms at home between trips.
+  //             count = how many at once, rest = [min, max] ms at home between trips, speed = faster/slower.
   // heli      : helicopter parked on the roof. pad = the middle of the H in the picture's own pixels;
   //             job = 'spotlight' (shines a light on a building), 'tour' (short flight) or 'fire' (puts out fires).
   // fire      : now and then a building within `radius` squares catches fire; the station sends its
@@ -67,6 +72,13 @@ export const CITY = {
       fire: { vehicle: 'firetruck', radius: 12, every: [90000, 180000] },
       heli: { vehicle: 'heli_fire', pad: { px: 124, py: 51 }, job: 'fire' },
     },
+    taxicenter: { patrol: { vehicle: 'taxi', count: 3, rest: [3000, 8000], speed: 1.1 } },
+    busstop: { patrol: { vehicle: 'bus', count: 1, rest: [6000, 14000], speed: 0.8 } },
+    postoffice: { patrol: { vehicle: 'mailvan', count: 2, rest: [8000, 20000] } },
+    recycleplant: { patrol: { vehicle: 'garbagetruck', count: 2, rest: [10000, 25000], speed: 0.75 } },
+    // chimneys: { px, py } = the top of the chimney in the picture's own pixels
+    factory: { smoke: [{ px: 96, py: 63 }, { px: 163, py: 43 }] },
+    nuclearreactor: { smoke: [{ px: 110, py: 74, big: true }] },
     dockpassenger: { nearWater: true, dock: { ship: 'cruiseship' } },
     dockshipment: { nearWater: true, dock: { ship: 'containership' } },
     airport: {

@@ -112,6 +112,17 @@ export class BuildingView {
     return best;
   }
 
+  // World position of a pixel of the building's picture (pictures of turned buildings are mirrored).
+  picturePoint(px, py) {
+    const def = this.b.def;
+    const tex = this.scene.textures.get(def.base || def.image).source[0];
+    const scale = this.place.width / tex.width;
+    return {
+      x: this.place.left + (this.b.rot ? tex.width - px : px) * scale,
+      y: this.place.tipY - tex.height * scale + py * scale,
+    };
+  }
+
   // World position of a building-local point (squares) at height z (px).
   localToWorld(lx, ly, z = 0) {
     const b = this.b;

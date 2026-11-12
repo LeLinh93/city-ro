@@ -97,13 +97,14 @@ export class World {
     return g !== GROUND.WATER || (!this.road[k] && !this.bldg[k]);
   }
 
-  paintGround(i, j, g) {
+  // quiet: don't announce the change (when painting many squares at once, call changed() after)
+  paintGround(i, j, g, { quiet = false } = {}) {
     if (!this.canPaint(i, j, g)) return false;
     const k = this.idx(i, j);
     if (this.ground[k] === g) return false;
     this.ground[k] = g;
     this.painted = true;
-    this.changed();
+    if (!quiet) this.changed();
     return true;
   }
 

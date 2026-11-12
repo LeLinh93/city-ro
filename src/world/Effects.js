@@ -14,6 +14,16 @@ export class Effects {
       alpha: { start: 0.7, end: 0 },
       emitting: false,
     }).setDepth(DEPTH.AIR - 10);
+    // big white steam (cooling towers)
+    this.steam = scene.add.particles(0, 0, 'fx_smoke', {
+      lifespan: { min: 2600, max: 3600 },
+      speedY: { min: -30, max: -16 },
+      speedX: { min: -4, max: 12 },
+      scale: { start: 2.2, end: 6 },
+      alpha: { start: 0.75, end: 0 },
+      tint: 0xffffff,
+      emitting: false,
+    }).setDepth(DEPTH.AIR - 10);
     this.dust = scene.add.particles(0, 0, 'fx_dust', {
       lifespan: { min: 400, max: 750 },
       speed: { min: 25, max: 80 },
@@ -29,9 +39,11 @@ export class Effects {
 
   addChimneys(view) {
     const b = view.b;
+    // a chimney is given as a pixel of the picture ({ px, py }) or as a building-local point ({ x, y, z });
+    // big: true for big white steam
     const list = (b.def.smoke || []).map((s) => {
-      const p = view.localToWorld(s.x, s.y, s.z);
-      return { x: p.x, y: p.y, next: this.scene.time.now + rand(300, 1500) };
+      const p = s.px !== undefined ? view.picturePoint(s.px, s.py) : view.localToWorld(s.x, s.y, s.z);
+      return { x: p.x, y: p.y, big: !!s.big, next: this.scene.time.now + rand(300, 1500) };
     });
     if (list.length) this.chimneys.set(b.id, list);
   }
@@ -76,8 +88,8 @@ export class Effects {
     for (const list of this.chimneys.values()) {
       for (const c of list) {
         if (time < c.next) continue;
-        this.smoke.emitParticleAt(c.x, c.y, 1);
-        c.next = time + rand(700, 1400);
+        (c.big ? this.steam : this.smoke).emitParticleAt(c.x + rand(-3, 3), c.y, 1);
+        c.next = time + (c.big ? rand(250, 450) : rand(400, 800));
       }
     }
   }
