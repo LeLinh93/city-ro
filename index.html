@@ -18,7 +18,11 @@
     <div id="menu">
       <h1 id="menu-title">City Builder</h1>
       <div id="menu-panel">
-        <button id="new-city" aria-label="New city">＋</button>
+        <div id="menu-actions">
+          <button id="new-city" aria-label="New city">＋</button>
+          <button id="load-city" aria-label="Load a city from a file">📂</button>
+          <input id="load-file" type="file" class="hidden" />
+        </div>
         <div id="city-list"></div>
       </div>
     </div>
@@ -35,6 +39,7 @@
         <button id="place-ok" class="round" aria-label="Build">✔</button>
         <button id="place-no" class="round" aria-label="Cancel">✖</button>
         <button id="place-flip" class="round" aria-label="Turn">🔄</button>
+        <button id="place-del" class="round" aria-label="Remove">🗑️</button>
       </div>
       <div id="submenu" class="hidden"></div>
       <div id="toolbar"></div>

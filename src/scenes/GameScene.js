@@ -14,7 +14,7 @@ import { Services } from '../agents/Services.js';
 import { Disasters } from '../agents/Disasters.js';
 import { Controls } from '../input/Controls.js';
 import { loadCity, saveCity } from '../saves.js';
-import { GROUND } from '../constants.js';
+import { GROUND, DEPTH } from '../constants.js';
 
 // Ground number for a paint tool id like 'paint:water', or null for other tools.
 // Building id for a decoration tool like 'deco:tree1', or null for other tools.
@@ -129,6 +129,15 @@ export class GameScene extends Phaser.Scene {
   }
 
   toolDown(sq, action) {
+    if (this.pending?.group) {
+      this.grabPending(sq, action);
+      return;
+    }
+    if (this.tool === 'select') {
+      action.area = { from: sq, to: sq, select: true };
+      this.showArea(action.area);
+      return;
+    }
     if (this.tool === 'road') {
       action.added = [];
       this.paintRoad(sq, action);
@@ -162,18 +171,20 @@ export class GameScene extends Phaser.Scene {
       this.paint(sq, action);
     } else if (action.placed) {
       this.decorate(sq, action);
-    } else if (BUILDINGS[this.tool] && action.grab) {
+    } else if ((BUILDINGS[this.tool] || this.pending?.group) && action.grab) {
       this.movePending(sq[0] - action.grab[0], sq[1] - action.grab[1]);
     }
   }
 
   toolUp(sq, action) {
     if (action.area) {
-      this.fillArea(action.area);
+      action.area.to = sq;
       this.ghost.hide();
+      if (action.area.select) this.pickUpArea(action.area);
+      else this.fillArea(action.area);
       return;
     }
-    if (action.touch && !BUILDINGS[this.tool]) this.ghost.hide();
+    if (action.touch && !BUILDINGS[this.tool] && !this.pending) this.ghost.hide();
   }
 
   // ---------- area mode: a rectangle of squares, filled when the finger lifts ----------
@@ -235,6 +246,7 @@ export class GameScene extends Phaser.Scene {
     if (BUILDINGS[this.tool]) return; // the waiting building stays where it is
     if (this.tool === 'road') this.ghost.showSquares([sq], this.world.canPlaceRoad(...sq));
     else if (this.tool === 'bulldoze') this.ghost.showSquares([sq], false);
+    else if (this.tool === 'select') this.ghost.showSquares([sq], true);
     else if (paintGround(this.tool) !== null) this.ghost.showSquares([sq], this.world.canPaint(...sq, paintGround(this.tool)));
     else if (decoType(this.tool)) {
       const type = decoType(this.tool);
@@ -294,6 +306,43 @@ export class GameScene extends Phaser.Scene {
     this.events.emit('picked-up', b.type);
   }
 
+  // Select tool: pick up every building touching the rectangle (not ruins), to move them together.
+  pickUpArea(area) {
+    if (this.disasters.busy) return;
+    const r = this.rect(area);
+    const list = [...this.world.buildings.values()].filter((b) => !b.ruined
+      && b.x <= r.x1 && b.x + b.w - 1 >= r.x0 && b.y <= r.y1 && b.y + b.d - 1 >= r.y0);
+    if (!list.length) return;
+    const x0 = Math.min(...list.map((b) => b.x));
+    const y0 = Math.min(...list.map((b) => b.y));
+    const x1 = Math.max(...list.map((b) => b.x + b.w));
+    const y1 = Math.max(...list.map((b) => b.y + b.d));
+    const group = list.map((b) => ({ type: b.type, rot: b.rot, dx: b.x - x0, dy: b.y - y0, w: b.w, d: b.d, ox: b.x, oy: b.y }));
+    for (const b of list) this.world.removeBuilding(b.id, { silent: true });
+    this.tool = 'group';
+    this.pending = { group, w: x1 - x0, d: y1 - y0, moving: true };
+    this.movePending(x0, y0);
+    this.events.emit('picked-up', 'group', group.length);
+  }
+
+  // One see-through copy per building of the group being moved.
+  showGroup(x, y) {
+    const p = this.pending;
+    this.groupGhosts ||= [];
+    p.group.forEach((m, k) => {
+      const g = (this.groupGhosts[k] ||= new Ghost(this));
+      g.show(m.type, BUILDINGS[m.type], x + m.dx, y + m.dy, m.rot, m.w, m.d, m.ok);
+      const depth = DEPTH.GHOST + (m.dx + m.dy + m.w + m.d) * 0.01; // front ones over back ones
+      g.base.setDepth(depth);
+      g.main.setDepth(depth + 0.005);
+    });
+    for (let k = p.group.length; k < this.groupGhosts.length; k++) this.groupGhosts[k].hide();
+  }
+
+  hideGroup() {
+    for (const g of this.groupGhosts || []) g.hide();
+  }
+
   // Start placing a building with its middle on square sq (default: the middle of the screen).
   startPlacing(type, sq = this.screenSquare()) {
     this.cancelMove(); // a building that was being moved goes back where it was
@@ -310,7 +359,9 @@ export class GameScene extends Phaser.Scene {
     const g = toGrid(w.x, w.y);
     const m = 0.5;
     if (g.fx >= p.x - m && g.fx <= p.x + p.w + m && g.fy >= p.y - m && g.fy <= p.y + p.d + m) return true;
-    return this.ghost.hit(w.x, w.y, (k, x, y) => this.alphaAt(k, x, y));
+    const alpha = (k, x, y) => this.alphaAt(k, x, y);
+    if (p.group) return p.group.some((_, k) => this.groupGhosts[k]?.hit(w.x, w.y, alpha));
+    return this.ghost.hit(w.x, w.y, alpha);
   }
 
   // Finger down on the waiting building: it follows the finger from where it was grabbed.
@@ -326,6 +377,12 @@ export class GameScene extends Phaser.Scene {
     if (!p) return;
     p.x = x;
     p.y = y;
+    if (p.group) {
+      for (const m of p.group) m.ok = this.world.canPlaceBuilding(m.type, x + m.dx, y + m.dy, m.rot);
+      p.ok = p.group.every((m) => m.ok);
+      this.showGroup(x, y);
+      return;
+    }
     const f = this.world.footprint(p.type, this.rot);
     p.w = f.w;
     p.d = f.d;
@@ -336,6 +393,7 @@ export class GameScene extends Phaser.Scene {
   // Mirror the building. A 2x1 building becomes 1x2; it stays centred where it was.
   flipPlacing() {
     const p = this.pending;
+    if (p?.group) return; // groups don't turn
     this.rot ^= 1;
     if (!p) return;
     const mid = [p.x + Math.floor((p.w - 1) / 2), p.y + Math.floor((p.d - 1) / 2)];
@@ -351,7 +409,12 @@ export class GameScene extends Phaser.Scene {
       if (!quiet) this.cameras.main.shake(120, 0.002);
       return false;
     }
-    this.world.addBuilding(p.type, p.x, p.y, this.rot);
+    if (p.group) {
+      for (const m of p.group) this.world.addBuilding(m.type, p.x + m.dx, p.y + m.dy, m.rot);
+      this.hideGroup();
+    } else {
+      this.world.addBuilding(p.type, p.x, p.y, this.rot);
+    }
     this.pending = null;
     this.ghost.hide();
     return true;
@@ -360,12 +423,30 @@ export class GameScene extends Phaser.Scene {
   // ✖: a new building just disappears; a building that was being moved goes back where it was.
   cancelPlacing() {
     const m = this.pending?.moving;
-    if (m) {
+    if (this.pending?.group) {
+      for (const g of this.pending.group) this.world.addBuilding(g.type, g.ox, g.oy, g.rot, { silent: true });
+      this.hideGroup();
+    } else if (m) {
       this.rot = m.rot;
       this.world.addBuilding(this.pending.type, m.x, m.y, m.rot, { silent: true });
     }
     this.pending = null;
     this.ghost.hide();
+  }
+
+  // 🗑️ while moving buildings that were already built: they are removed instead of put back.
+  deletePlacing() {
+    const p = this.pending;
+    if (!p?.moving) return false;
+    const spots = p.group
+      ? p.group.map((g) => ({ x: g.ox, y: g.oy, w: g.w, d: g.d }))
+      : [{ x: p.moving.x, y: p.moving.y, ...this.world.footprint(p.type, p.moving.rot) }];
+    this.pending = null;
+    this.ghost.hide();
+    this.hideGroup();
+    for (const s of spots) this.fx.dustFootprint(s);
+    this.queueSave();
+    return true;
   }
 
   // Anything that interrupts a move (opening a menu, picking another building) puts the building back
@@ -384,10 +465,19 @@ export class GameScene extends Phaser.Scene {
     if (!p) return null;
     const cam = this.cameras.main;
     const place = footprintPlacement(p.x, p.y, p.w, p.d);
-    const tex = this.textures.get(BUILDINGS[p.type].base || BUILDINGS[p.type].image).source[0];
-    const top = place.tipY - tex.height * (place.width / tex.width);
+    // the top of the tallest picture
+    const topOf = (type, x, y, w, d) => {
+      const pl = footprintPlacement(x, y, w, d);
+      const tex = this.textures.get(BUILDINGS[type].base || BUILDINGS[type].image).source[0];
+      return pl.tipY - tex.height * (pl.width / tex.width);
+    };
+    const top = p.group
+      ? Math.min(...p.group.map((m) => topOf(m.type, p.x + m.dx, p.y + m.dy, m.w, m.d)))
+      : topOf(p.type, p.x, p.y, p.w, p.d);
     const k = cam.zoom * this.scale.zoom;
     return {
+      group: !!p.group,
+      moving: !!p.moving,
       x: (place.left + place.width / 2 - cam.worldView.x) * k,
       y: (top - cam.worldView.y) * k,
       bottom: (place.tipY - cam.worldView.y) * k,
@@ -469,7 +559,9 @@ export class GameScene extends Phaser.Scene {
     const data = this.world.serialize();
     // a building that is being moved is saved where it was
     const m = this.pending?.moving;
-    if (m) {
+    if (this.pending?.group) {
+      for (const g of this.pending.group) data.buildings.push([g.type, g.ox, g.oy, g.rot, g.w, g.d]);
+    } else if (m) {
       const f = this.world.footprint(this.pending.type, m.rot);
       data.buildings.push([this.pending.type, m.x, m.y, m.rot, f.w, f.d]);
     }

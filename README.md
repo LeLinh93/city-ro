@@ -28,16 +28,20 @@ with its own icon. After you upload a new build, the app updates itself the next
 ## How to play
 
 The game opens on the menu: tap **＋** for a new city, or tap a saved city to keep building. 🗑️ deletes a city.
+⬇️ on a city saves it to a file (on the iPad home-screen app the share sheet opens: pick "Save to Files"),
+and 📂 next to ＋ loads a city from a file on the device as a new city. Use them to keep a copy or to move a
+city to another device, since cities are otherwise stored only in this browser.
 In a city, 🏠 (top right) saves and goes back to the menu.
 
 | Button | What it does |
 |---|---|
 | ✋ Move | Drag to look around. Two fingers pinch to zoom (works with every tool). |
+| 🔳 Select | Drag a box: every building touching it is picked up. Drag the group somewhere else (red = doesn't fit), then ✔ puts them all down or ✖ puts them back. Groups don't turn. |
 | 🛣️ Road | Drag to draw roads. They go straight along the grid; move sideways to turn a corner. Tap Road again to go back to Move. |
 | 🖌️ Plot | Pick grass, sand, water or pavement, then tap or drag to paint the ground. Water can't go under roads or buildings. |
 | 🏠 🏪 🏥 🗼 ✈️ … | Opens that group's buildings in one row (swipe sideways for more). Tap one (it appears in the middle) or drag it up onto the map. |
 | 🌳 Decoration | Works like Plot: pick one, then tap or drag on the map to put them down. The menu stays open until you tap 🌳 again. |
-| ⚡ Disaster | 🏚️ Earthquake, 🌪️ Tornado, 🌊 Tsunami or ☄️ Meteor ruins buildings. While it lasts, the build bar is locked and buildings can't be picked up (looking around and zooming still work); the red ⏹ Stop disaster button at the top middle ends it straight away. |
+| ⚡ Disaster | 🏚️ Earthquake, 🌪️ Tornado, 🌊 Tsunami, ☄️ Meteor or 🌋 Volcano. While it lasts, the build bar is locked and buildings can't be picked up (looking around and zooming still work); the red ⏹ Stop disaster button at the top middle ends it straight away. |
 | 🔧 Repair | Fixes every ruined building and puts out every fire. |
 | 🚜 Remove | Tap or drag over roads and buildings. Tap Remove again to go back to Move. |
 
@@ -50,7 +54,7 @@ map, and pinching still zooms. Then:
 ✔ builds it, ✖ cancels, 🔄 turns it (mirrors the picture, so a 2×1 building becomes 1×2).
 Both go back to ✋ Move. Pressing another button instead builds it when its spot is OK (green) and drops it
 when it is not (a building you were moving goes back). With ✋ Move, tap a building to pick it up and move or turn it the same way
-(✖ puts it back where it was).
+(✖ puts it back where it was, 🗑️ removes it). 🗑️ also shows for a group picked up with 🔳 Select.
 
 Buildings don't need roads. You can build on grass and sand, but not on water. Cities save themselves in the
 browser a moment after every change, once a minute, and when you leave the city or the app.
@@ -66,6 +70,10 @@ Disasters (one at a time):
   helicopters (one fire each) and trucks (two per station, if a road leads there). A disaster's fires go out
   faster (4 s with a helicopter, 1.5 s with a truck as well), but a building left burning for 75 s is ruined.
   While a disaster or its fires are going on, fire stations don't start fires of their own.
+- 🌋 Volcano: tap where it should come up. A volcano (art-source/disaster/volcano-8x8.png) pushes up over
+  whatever is there, the ground shakes, smoke pours out and fire balls fly out for about 13 seconds. Every
+  building in the 25 × 25 squares around it is hit by a fire ball and catches fire (fire stations come, as
+  for the meteor). Then the volcano sinks back into the ground.
 
 A ruined building keeps its place but stops working (no people, patrols, helicopters, planes, ships or fires)
 until 🔧 Repair. Ruins can't be moved, but 🚜 Remove clears them.

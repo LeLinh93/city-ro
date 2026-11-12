@@ -221,6 +221,40 @@ body.in-menu #hud {
   margin-top: max(28vh, 14vw);
 }
 
+#menu-actions {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+#load-city {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: #fff;
+  font-size: 34px;
+  line-height: 1;
+  border: 4px solid #fff;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+
+#load-city:active,
+.city-export:active {
+  transform: scale(0.94);
+}
+
+.city-export {
+  position: absolute;
+  top: -8px;
+  left: -8px;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: var(--shadow);
+  font-size: 18px;
+}
+
 #new-city {
   flex: 0 0 auto;
   width: 104px;
@@ -435,6 +469,10 @@ body.in-menu #hud {
 #place-no {
   background: #ff3b30;
   color: #fff;
+}
+
+#place-del {
+  background: #fff;
 }
 
 #place-ok.disabled {

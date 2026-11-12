@@ -9,7 +9,10 @@ const inTile = (u, v) => u >= 0 && u < 1 && v >= 0 && v < 1;
 
 // Colours of the code-drawn ground and roads (bright, flat, like the city art).
 export const COLORS = {
-  grass: [0x80cb5d, 0x73bf51], // light and dark squares of the checkerboard
+  grass: [0x7bc657, 0x7bc657], // plain grass (with grassColor's texture on top)
+  grassDark: 0x6cb64b,
+  grassLight: 0x8bd368,
+  grassBlade: 0x5da43f,
   grassRim: 0x62ab45,
   sand: 0xf1dfa4,
   water: 0x45a3e0,
@@ -24,6 +27,24 @@ export const COLORS = {
   paveJoint: 0xa2a3a6,
 };
 
+// Textured grass: the plain colour with specks and little blades of grass, different for every variant.
+// Specks and blades never cross a square's edge, so neighbouring squares always fit together.
+export function grassColor(px, py, variant) {
+  const seed = variant * 131 + 17;
+  // a blade of grass in some 6 x 5 cells: three pixels tall, dark at the root, light at the tip
+  const cx = Math.floor(px / 6);
+  const cy = Math.floor(py / 5);
+  if (hash2(cx, cy, seed) < 0.45) {
+    const bx = cx * 6 + 1 + Math.floor(hash2(cx, cy, seed + 1) * 4);
+    const by = cy * 5 + 3;
+    if (px === bx && py <= by && py >= by - 2) return py === by - 2 ? COLORS.grassLight : COLORS.grassBlade;
+  }
+  const h = hash2(px, py, seed + 2);
+  if (h < 0.06) return COLORS.grassDark;
+  if (h > 0.95) return COLORS.grassLight;
+  return COLORS.grass[0];
+}
+
 export function genGround(type, variant, frames = 1) {
   const pix = new Pix(128 * frames, 64);
   for (let f = 0; f < frames; f++) {
@@ -34,7 +55,7 @@ export function genGround(type, variant, frames = 1) {
         const h = hash2(px, py, variant * 31 + 7);
         let c;
         if (type === 'grass') {
-          c = COLORS.grass[variant % 2];
+          c = grassColor(px, py, variant);
         } else if (type === 'pavement') {
           // 4 x 4 paving slabs; each square draws the joints on its top two sides only, so they line up
           const su = u * 4;
@@ -62,7 +83,7 @@ export function genGround(type, variant, frames = 1) {
 }
 
 // Shore overlays. kind: 'grass' (grass fringe over sand) or 'foam' (foam over water).
-// part: side ne/se/sw/nw or corner n/e/s/w. variant: which checkerboard grass colour.
+// part: side ne/se/sw/nw or corner n/e/s/w. variant: which grass texture.
 export function genEdge(kind, part, variant = 0) {
   const pix = new Pix(128, 64);
   const main = kind === 'grass' ? COLORS.grass[variant % 2] : COLORS.foam;
@@ -85,7 +106,7 @@ export function genEdge(kind, part, variant = 0) {
         default: dist = Math.hypot(u, 1 - v); along = 0; break; // w
       }
       const t = 0.12 + 0.03 * Math.sin(along * Math.PI * 6) + (part.length === 1 ? 0.02 : 0);
-      if (dist < t - 0.025) pix.set(px, py, main, alpha);
+      if (dist < t - 0.025) pix.set(px, py, kind === 'grass' ? grassColor(px, py, variant) : main, alpha);
       else if (dist < t) pix.set(px, py, rim, alpha);
       else if (kind === 'foam' && dist < t + 0.05 && hash2(px, py, 5) < 0.25) pix.set(px, py, 0xffffff, 140);
     }

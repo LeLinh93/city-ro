@@ -3,6 +3,8 @@ import { BUILDINGS, MENUS } from './themes/catalog.js';
 
 const HINTS = {
   hand: 'Drag to move around. Tap a building to move it. Pinch with two fingers to zoom.',
+  select: 'Drag a box around buildings to pick them all up and move them together.',
+  group: 'Drag them to move them. ✔ puts them down, ✖ puts them back.',
   road: 'Drag your finger to draw roads.',
   bulldoze: 'Tap or drag to remove things.',
   menu: 'Tap a building, or drag it up onto the map.',
@@ -15,6 +17,7 @@ const HINTS = {
   tornado: 'A tornado is coming!',
   tsunami: 'Tsunami! A huge wave is coming from the sea.',
   meteor: 'Tap on the map where the meteor should hit.',
+  volcano: 'Tap on the map where the volcano should come up.',
   busy: 'Wait until this disaster is over.',
   brush: 'Brush: tap or drag to do one square at a time.',
   area: 'Area: drag a rectangle on the map. It is filled when you let go.',
@@ -41,6 +44,7 @@ const DISASTERS = [
   { action: 'tornado', name: 'Tornado', icon: '🌪️' },
   { action: 'tsunami', name: 'Tsunami', icon: '🌊' },
   { action: 'meteor', name: 'Meteor', icon: '☄️' },
+  { action: 'volcano', name: 'Volcano', icon: '🌋' },
 ];
 
 const isPaint = (id) => typeof id === 'string' && id.startsWith('paint:');
@@ -75,7 +79,12 @@ export class UI {
       this.scene?.cancelPlacing();
       this.select('hand');
     });
-    document.getElementById('place-flip').addEventListener('click', () => this.scene?.flipPlacing());
+    this.del = document.getElementById('place-del');
+    this.del.addEventListener('click', () => {
+      if (this.scene?.deletePlacing()) this.select('hand', false);
+    });
+    this.flip = document.getElementById('place-flip');
+    this.flip.addEventListener('click', () => this.scene?.flipPlacing());
 
     // A finger on a menu: swipe sideways to scroll, drag up to carry a building out, tap to pick.
     this.sub.addEventListener('pointerdown', (e) => {
@@ -109,8 +118,8 @@ export class UI {
     this.stop.classList.add('hidden');
     scene.events.on('picked-up', (type) => {
       this.closeMenu();
-      this.highlight(type);
-      this.showHint(HINTS.placing);
+      this.highlight(type === 'group' ? 'select' : type);
+      this.showHint(type === 'group' ? HINTS.group : HINTS.placing);
     });
     this.buildBar();
     this.select('hand');
@@ -146,6 +155,7 @@ export class UI {
     this.bar.textContent = '';
     this.buttons.clear();
     this.button('hand', '✋', 'Move', () => this.select('hand'));
+    this.button('select', '🔳', 'Select', () => this.toggleTool('select'));
     this.button('road', '🛣️', 'Road', () => this.toggleTool('road'));
     const plot = PAINTS.map((p) => ({ ...p, url: this.scene.textures.getBase64(p.texture, 0) }));
     this.button('plot', '🖌️', 'Plot', () => this.toggleMenu('plot', plot, true, HINTS.plot));
@@ -344,6 +354,8 @@ export class UI {
     }
     this.place.classList.remove('hidden');
     this.ok.classList.toggle('disabled', !a.ok);
+    this.flip.classList.toggle('hidden', a.group); // groups don't turn
+    this.del.classList.toggle('hidden', !a.moving); // only for buildings that were already built
     const w = this.place.offsetWidth;
     const h = this.place.offsetHeight;
     const vw = window.innerWidth;

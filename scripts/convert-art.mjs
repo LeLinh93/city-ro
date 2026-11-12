@@ -61,6 +61,11 @@ function targetFor(to, job) {
   }
   const [folder, file] = to.split('/');
   const name = file.replace(/\.png$/, '');
+  // disaster pictures, e.g. disaster/volcano-8x8.png: as wide as that many squares, the whole canvas kept
+  const size = name.match(/-(\d+)x(\d+)$/);
+  if (folder === 'disaster' && size) {
+    return { width: (Number(size[1]) + Number(size[2])) * 64, trim: false, keepBackground: true };
+  }
   if (folder === 'buildings') {
     if (!job.footprint) throw new Error(`${to}: buildings now live in building-<theme>/<Menu>/<name>-<W>x<D>.png`);
     const [W, D] = job.footprint;

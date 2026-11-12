@@ -1,5 +1,6 @@
 import { DEPTH, GROUND } from '../constants.js';
 import { toWorld } from '../iso.js';
+import { footprintPlacement } from '../world/BuildingView.js';
 import { pick, rand } from '../rng.js';
 
 // Earthquake, tornado and tsunami. Only one at a time. Ruined buildings stay ruined until Repair.
@@ -18,7 +19,7 @@ export class Disasters {
     return !!this.current;
   }
 
-  // The meteor waits for a tap on the map: returns true if the tap was used for it.
+  // The meteor and the volcano wait for a tap on the map: returns true if the tap was used for it.
   tap(sq) {
     if (!this.current?.aiming) return false;
     this.current.aim(sq[0] + 0.5, sq[1] + 0.5);
@@ -27,7 +28,7 @@ export class Disasters {
 
   start(kind) {
     if (this.current) return false;
-    const make = { earthquake: Earthquake, tornado: Tornado, tsunami: Tsunami, meteor: Meteor }[kind];
+    const make = { earthquake: Earthquake, tornado: Tornado, tsunami: Tsunami, meteor: Meteor, volcano: Volcano }[kind];
     if (!make) return false;
     this.current = new make(this);
     this.scene.events.emit('disaster', true);
@@ -593,5 +594,150 @@ class Meteor {
     g.strokeEllipse(hit.x, hit.y, ringR * 2, ringR);
     g.fillStyle(0xff7a1a, 0.6 * (1 - t));
     g.fillEllipse(hit.x, hit.y, 260 * (1 - t * 0.5), 120 * (1 - t * 0.5));
+  }
+}
+
+// ---------- volcano ----------
+
+const RISE_MS = 1800; // the volcano pushes up out of the ground
+const ERUPT_MS = 13000; // fire balls and smoke
+const SINK_MS = 2200; // then it sinks back into the ground
+const VOLCANO_FIRE = 25; // squares: buildings in this square around it catch fire (hit by fire balls)
+const VOLCANO_SIZE = 8; // squares the picture covers (assets/disaster/volcano-8x8.png)
+const CRATER = { px: 510, py: 142 }; // the crater in the picture's own pixels
+
+class Volcano {
+  constructor(d) {
+    this.d = d;
+    this.state = 'aim';
+    this.balls = [];
+    const scene = d.scene;
+    this.plume = scene.add.particles(0, 0, 'fx_smoke', {
+      lifespan: { min: 2500, max: 4000 }, speedY: { min: -110, max: -60 }, speedX: { min: -30, max: 30 },
+      scale: { start: 4, end: 12 }, alpha: { start: 0.8, end: 0 }, tint: 0x3b3431, emitting: false,
+    }).setDepth(DEPTH.AIR - 4);
+    this.sparks = scene.add.particles(0, 0, 'fx_flame', {
+      lifespan: { min: 300, max: 600 }, speed: { min: 40, max: 140 }, angle: { min: 200, max: 340 },
+      gravityY: 250, scale: { start: 1.8, end: 0.3 }, alpha: { start: 1, end: 0 }, emitting: false,
+    }).setDepth(DEPTH.AIR - 2);
+  }
+
+  get aiming() {
+    return this.state === 'aim';
+  }
+
+  aim(x, y) {
+    const d = this.d;
+    const scene = d.scene;
+    const time = scene.time.now;
+    this.x = x;
+    this.y = y;
+    const half = VOLCANO_SIZE / 2;
+    const place = footprintPlacement(x - half, y - half, VOLCANO_SIZE, VOLCANO_SIZE);
+    if (scene.textures.exists('volcano')) {
+      const tex = scene.textures.get('volcano').source[0];
+      const scale = place.width / tex.width;
+      // drawn over the buildings and roads under it while it is there
+      this.im = scene.add.image(place.left, place.tipY, 'volcano').setOrigin(0, 1).setScale(scale, 0)
+        .setDepth(DEPTH.AIR - 7);
+      this.crater = { x: place.left + CRATER.px * scale, y: place.tipY - (tex.height - CRATER.py) * scale };
+      this.scale = scale;
+    } else {
+      const c = toWorld(x, y);
+      this.crater = { x: c.x, y: c.y - 300 };
+    }
+    this.state = 'rise';
+    this.t0 = time;
+
+    // every building in the 25 x 25 square around it is hit by a fire ball some time during the eruption
+    const w = d.world;
+    const h = VOLCANO_FIRE / 2;
+    for (const b of w.buildings.values()) {
+      if (b.ruined || b.def.menu === 'Decoration') continue;
+      if (b.x >= x + h || b.x + b.w <= x - h || b.y >= y + h || b.y + b.d <= y - h) continue;
+      this.launch(time + RISE_MS + rand(300, ERUPT_MS - 3000), b.x + b.w / 2, b.y + b.d / 2, b);
+    }
+    // and plenty more that just land somewhere around it
+    for (let k = 0; k < 45; k++) {
+      this.launch(time + RISE_MS + rand(0, ERUPT_MS - 2500), x + rand(-h, h), y + rand(-h, h), null);
+    }
+  }
+
+  // A fire ball leaving the crater at time `at`, landing on square point (lx, ly) (setting `target` on fire).
+  launch(at, lx, ly, target) {
+    const land = toWorld(lx, ly);
+    this.balls.push({ at, land, target, flight: rand(1300, 2300), arc: rand(260, 520), r: rand(6, 11), trail: [] });
+  }
+
+  update(time) {
+    const d = this.d;
+    if (this.state === 'aim') return false;
+    const t = time - this.t0;
+    if (this.state === 'rise') {
+      if (this.im) this.im.setScale(this.scale, this.scale * Math.min(1, t / RISE_MS));
+      if (time > (this.nextShake || 0)) {
+        d.scene.cameras.main.shake(320, 0.003, true);
+        this.nextShake = time + 300;
+      }
+      if (t >= RISE_MS) this.state = 'erupt';
+    } else if (this.state === 'erupt') {
+      if (time > this.nextShake) {
+        d.scene.cameras.main.shake(320, 0.003 + 0.003 * Math.random(), true);
+        this.nextShake = time + 300;
+      }
+      this.plume.emitParticleAt(this.crater.x + rand(-14, 14), this.crater.y - 10, 2);
+      if (Math.random() < 0.5) this.sparks.emitParticleAt(this.crater.x + rand(-20, 20), this.crater.y, 2);
+      if (t >= RISE_MS + ERUPT_MS) {
+        this.state = 'sink';
+        this.t1 = time;
+      }
+    } else if (this.state === 'sink') {
+      const k = Math.min(1, (time - this.t1) / SINK_MS);
+      if (this.im) this.im.setScale(this.scale, this.scale * (1 - k)).setAlpha(1 - k * 0.5);
+      if (k >= 1 && !this.balls.length) {
+        this.stop();
+        return true;
+      }
+    }
+    this.render(time);
+    return false;
+  }
+
+  render(time) {
+    const g = this.d.draw;
+    g.clear();
+    const c = this.crater;
+    this.balls = this.balls.filter((b) => {
+      if (time < b.at) return true;
+      const k = (time - b.at) / b.flight;
+      if (k >= 1) {
+        // landing: a burst of sparks, and the building it hit catches fire
+        this.sparks.emitParticleAt(b.land.x, b.land.y, 10);
+        if (b.target) this.d.services.ignite(b.target, time, FIRE_BURN_OUT);
+        return false;
+      }
+      const x = c.x + (b.land.x - c.x) * k;
+      const y = c.y + (b.land.y - c.y) * k - b.arc * 4 * k * (1 - k);
+      b.trail.push([x, y]);
+      if (b.trail.length > 7) b.trail.shift();
+      b.trail.forEach(([tx, ty], n) => {
+        g.fillStyle(0xff7a1a, 0.15 + 0.08 * n);
+        g.fillCircle(tx, ty, b.r * (0.4 + n * 0.08));
+      });
+      g.fillStyle(0xff8a2a, 0.55);
+      g.fillCircle(x, y, b.r * 1.7);
+      g.fillStyle(0xffd060, 1);
+      g.fillCircle(x, y, b.r);
+      g.fillStyle(0xfff4c0, 1);
+      g.fillCircle(x - b.r * 0.25, y - b.r * 0.25, b.r * 0.45);
+      return true;
+    });
+  }
+
+  stop() {
+    this.im?.destroy();
+    this.plume.destroy();
+    this.sparks.destroy();
+    this.balls = [];
   }
 }

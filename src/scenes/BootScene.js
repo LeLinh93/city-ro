@@ -72,6 +72,7 @@ export class BootScene extends Phaser.Scene {
     for (const id of Object.keys(VEHICLES)) L.image(`veh:${id}`, `${BASE}vehicles/${id}.png`);
     for (let i = 0; i < ART.planeVariants; i++) sheet(`plane_${i}`, `${BASE}vehicles/plane_${i}.png`, ART.plane);
     L.image('fx_smoke', `${BASE}fx/smoke.png`);
+    L.image('volcano', `${BASE}disaster/volcano-8x8.png`);
     L.image('fx_dust', `${BASE}fx/dust.png`);
   }
 
@@ -96,9 +97,9 @@ export class BootScene extends Phaser.Scene {
       variants[name] = list;
     };
 
-    group('grass', 'grass', ART.groundVariants, (k, i) => addPix(this, k, genGround('grass', i)), 2);
-    // Code-drawn grass is a checkerboard of a light and a dark square.
-    const checker = !has('grass_0') || this.textures.get('grass_0').source[0].image instanceof HTMLCanvasElement;
+    // Code-drawn grass: plain green with specks and blades, 4 slightly different squares mixed at random.
+    group('grass', 'grass', ART.groundVariants, (k, i) => addPix(this, k, genGround('grass', i)), 4);
+    const checker = false; // (grass used to be a light and dark checkerboard)
     group('sand', 'sand', ART.groundVariants, (k, i) => addPix(this, k, genGround('sand', i)), 3);
     group('pavement', 'pavement', ART.groundVariants, (k, i) => addPix(this, k, genGround('pavement', i)), 2);
     group('water', 'water', ART.groundVariants, (k, i) => addPix(this, k, genGround('water', i, 4), 128, 64), 2);

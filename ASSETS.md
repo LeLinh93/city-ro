@@ -102,12 +102,12 @@ Corners: `n` = top, `e` = right, `s` = bottom, `w` = left.
 
 ## Ground (`assets/ground/`)
 
-Grass, sand, water, pavement and roads are drawn by code (grass is a light and dark checkerboard). You only need these
+Grass, sand, water, pavement and roads are drawn by code (grass is plain green with a light texture of specks and blades). You only need these
 files if you want to replace that look.
 
 | File | Size | Notes |
 |---|---|---|
-| `grass_0.png` … `grass_3.png` | 128 × 64 | Variants are mixed randomly. 1–4 files. (Replaces the checkerboard.) |
+| `grass_0.png` … `grass_3.png` | 128 × 64 | Variants are mixed randomly. 1–4 files. (Replaces the code-drawn grass.) |
 | `sand_0.png` … `sand_3.png` | 128 × 64 | |
 | `water_0.png` … `water_3.png` | 128·N × 64 | N animation frames side by side (e.g. 4 frames = 512 × 64). |
 | `edge_grass_ne/se/sw/nw.png` | 128 × 64 | Grass spilling onto a sand square from that side. |
@@ -169,6 +169,12 @@ Changing a width in `src/data/vehicles.js` and running `npm run art` again re-ma
 | `containership-sheet.png`, `cruiseship-sheet.png` | Ships of the container dock and the passenger dock. |
 
 Without these files the game falls back to simple code-drawn cars and planes.
+
+## Disasters (`art-source/disaster/`)
+
+`volcano-8x8.png`: the volcano, drawn like a building that covers 8 × 8 squares (any size, transparent
+background). `npm run art` shrinks it to 1024 px wide. The crater's position in that picture is set in
+`src/agents/Disasters.js` (`CRATER`).
 
 ## Effects (`assets/fx/`)
 
