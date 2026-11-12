@@ -18,6 +18,12 @@ const ZAP_EVERY = 20000; // ms between shots of the small side laser, which dest
 const ZAP_RANGE = 1100; // px from the UFO
 const ZAP_MS = 400; // how long the small beam shows
 const NEW_TANK = 8000; // ms before a military base sends a new tank after one is destroyed
+// Blue lights at night, on the ring of lights round the bottom of the saucer (px from the middle of the picture).
+// They flash together like a plane's blinking light: bright for BLINK_ON ms every BLINK_MS.
+const RIM_LIGHTS = [[-334, 94], [-294, 124], [-240, 151], [-165, 173], [-102, 185], [-27, 192],
+  [56, 190], [115, 181], [187, 166], [244, 146], [292, 123], [333, 94]];
+const BLINK_MS = 1200;
+const BLINK_ON = 180;
 const RUIN_SIZE = 4; // squares: buildings in this square around the impact are ruined
 const FIRE_SIZE = 8; // squares: buildings in this square around it catch fire
 const FIRE_BURN_OUT = 75000; // ms: a fire nobody puts out by then ruins its building
@@ -60,6 +66,7 @@ export class Ufo {
     this.sorties = new Map(); // `${airport id}:${plane}` -> sortie
     this.reload = new Map(); // silo id or ship -> time it can fire again
     this.g = scene.add.graphics().setDepth(DEPTH.AIR + 2000);
+    this.shadow = scene.add.graphics().setDepth(DEPTH.SHADOW); // the UFO's shadow, on the ground under everything
     this.sparks = scene.add.particles(0, 0, 'fx_flame', {
       lifespan: { min: 300, max: 700 }, speed: { min: 40, max: 180 }, gravityY: 120,
       scale: { start: 1.6, end: 0.2 }, alpha: { start: 1, end: 0 }, emitting: false,
@@ -166,6 +173,7 @@ export class Ufo {
       targets: u.im, alpha: 0, duration: exploded ? 500 : 700,
       onComplete: () => {
         u.im.destroy();
+        u.lights?.forEach((l) => l.destroy());
         if (this.ufo === u) this.ufo = null;
       },
     });
@@ -180,6 +188,7 @@ export class Ufo {
   update(time, dt) {
     const g = this.g;
     g.clear();
+    this.shadow.clear();
     if (this.ufo && !this.ufo.leaving) {
       this.moveUfo(time, dt);
       this.laser(time);
@@ -210,16 +219,30 @@ export class Ufo {
     }
   }
 
+  // At night: blue lights round the rim that flash together, like a plane's blinking light (see DayNight.js).
+  rimLights(u, time) {
+    const night = this.scene.dayNight;
+    if (!night) return;
+    u.lights ||= RIM_LIGHTS.map(() => night.glowImage(0, 0, 'fx_glow').setTint(0x3aa8ff).setBlendMode('ADD').setScale(30 / 32));
+    const blink = time % BLINK_MS < BLINK_ON ? 1 : 0.12;
+    u.lights.forEach((im, k) => {
+      const [px, py] = RIM_LIGHTS[k];
+      im.setVisible(night.level > 0).setPosition(u.im.x + px, u.im.y + py)
+        .setAlpha(night.level * blink * u.im.alpha).setDepth(DEPTH.AIR + u.alt + 1);
+    });
+  }
+
   renderUfo(time) {
     const u = this.ufo;
     const p = this.screenPos();
     const bob = (u.bob = Math.sin(time / 500) * 6);
     if (u.v) faceVehicle(u.v, u.dir[0], u.dir[1]);
     u.im.setPosition(Math.round(p.x), Math.round(p.y + bob)).setDepth(DEPTH.AIR + u.alt);
+    this.rimLights(u, time);
     const g = this.g;
     // its shadow on the ground
-    g.fillStyle(0x000000, 0.18 * u.im.alpha);
-    g.fillEllipse(p.ground.x, p.ground.y, u.im.displayWidth * 0.8, u.im.displayWidth * 0.32);
+    this.shadow.fillStyle(0x000000, 0.18 * u.im.alpha);
+    this.shadow.fillEllipse(p.ground.x, p.ground.y, u.im.displayWidth * 0.8, u.im.displayWidth * 0.32);
     if (u.leaving) return;
     // health bar above it
     const b = u.im.getBounds();
