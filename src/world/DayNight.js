@@ -249,7 +249,8 @@ export class DayNight {
 
   makeVehicleLights(e) {
     const add = (key, tint, blend = Phaser.BlendModes.ADD) => this.glowImage(0, 0, key).setTint(tint).setBlendMode(blend);
-    if (e.kind === 'car') return [add('fx_beam', 0xfff2c4), add('fx_glow', 0xff2a1a), add('fx_glow', 0xff2a1a)];
+    // the beam is held by its narrow end, so it starts at the front of the car and only shines forward
+    if (e.kind === 'car') return [add('fx_beam', 0xfff2c4).setOrigin(0, 0.5), add('fx_glow', 0xff2a1a), add('fx_glow', 0xff2a1a)];
     if (e.kind === 'air') return [add('fx_glow', 0xff3020), add('fx_glow', 0xffffff)];
     return [add('fx_glow', WARM), add('fx_glow', 0xff3020)];
   }
@@ -282,8 +283,8 @@ export class DayNight {
       const [l0, l1, l2] = e.ims;
       if (e.kind === 'car') {
         // headlight beam on the road ahead, two red tail lights
-        l0.setPosition(im.x + ux * s * 0.3, im.y + uy * s * 0.3).setRotation(Math.atan2(uy, ux))
-          .setScale((s * 1.3) / 64, (s * 0.7) / 32).setDepth(im.depth - 0.01).setAlpha(0.5 * a).setVisible(true);
+        l0.setPosition(im.x + ux * s * 0.28, im.y + uy * s * 0.28).setRotation(Math.atan2(uy, ux))
+          .setScale((s * 1.1) / 64, (s * 0.7) / 32).setDepth(im.depth - 0.01).setAlpha(0.5 * a).setVisible(true);
         const bx = im.x - ux * s * 0.36;
         const by = im.y - uy * s * 0.36 - s * 0.1;
         const side = s * 0.1;
