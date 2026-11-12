@@ -44,6 +44,7 @@ const SILO_RELOAD = 30000;
 const SHIP_RELOAD = 20000;
 const SHIP_SALVO = 5; // rockets a destroyer or carrier fires at a time
 const SHIP_TYPES = ['destroyer', 'aircraftcarrier'];
+const CARRIER_DECK = 22; // px from the carrier's waterline up to its flight deck
 const SORTIE_REST = 20000; // ms a plane or helicopter waits at the airport between attacks
 // salvo: what it fires on each attack, in order: [kind, how many, ms between them]
 const PLANES = {
@@ -411,10 +412,16 @@ export class Ufo {
       }
     }
     // ships of the fleet
+    const ships = new Set();
     for (const dock of this.ships.docks.values()) {
       for (const slot of dock.slots) {
         const s = slot.ship;
         if (!s || !SHIP_TYPES.includes(slot.id)) continue;
+        ships.add(s);
+        // a carrier also sends its fighter jet, like the airport's
+        if (slot.id === 'aircraftcarrier' && !this.sorties.has(s) && hasVehicle(this.scene, 'fighterjet')) {
+          this.sorties.set(s, this.newSortie(dock.b, 'fighterjet', time, s));
+        }
         if (!this.reload.has(s)) {
           this.reload.set(s, time + rand(2000, 6000));
           continue;
@@ -432,7 +439,8 @@ export class Ufo {
       }
     }
     // planes of an airport that is gone don't go out again
-    for (const s of this.sorties.values()) if (!live(s.b)) s.dead = true;
+    // (and a carrier's jet doesn't once the carrier is gone)
+    for (const s of this.sorties.values()) if (s.ship ? !ships.has(s.ship) : !live(s.b)) s.dead = true;
   }
 
   // One tank per military base drives along the roads towards the UFO and shoots when it is close enough.
@@ -509,12 +517,17 @@ export class Ufo {
 
   // ---------- planes and helicopters from the military airport ----------
 
-  newSortie(b, plane, time) {
-    return { b, plane, cfg: PLANES[plane], state: 'rest', until: time + rand(1000, 5000), v: null };
+  // `ship`: the carrier the plane flies from, instead of the airport `b`.
+  newSortie(b, plane, time, ship = null) {
+    return { b, ship, plane, cfg: PLANES[plane], state: 'rest', until: time + rand(1000, 5000), v: null };
   }
 
-  // Where a plane of this airport takes off and lands, in world px.
+  // Where a plane of this airport (or carrier) takes off and lands, in world px.
   home(s) {
+    if (s.ship) {
+      const p = toWorld(s.ship.x, s.ship.y);
+      return { x: p.x, y: p.y - CARRIER_DECK };
+    }
     const b = s.b;
     const local = (lx, ly) => (b.rot ? toWorld(b.x + ly, b.y + lx) : toWorld(b.x + lx, b.y + ly));
     if (s.plane === 'heli_military' && b.def.heli) {
@@ -611,7 +624,8 @@ export class Ufo {
         if (s.pass) shoot();
       }
     } else if (s.state === 'back') {
-      // home, coming down near the end
+      // home, coming down near the end (a carrier keeps sailing, so follow it)
+      if (s.ship) s.home = this.home(s);
       const d = Math.hypot(s.home.x - s.x, s.home.y - s.y);
       climb(d < 500 ? 0 : c.alt, 130);
       if (toward(s.home, c.speed) && s.alt <= 0) {
