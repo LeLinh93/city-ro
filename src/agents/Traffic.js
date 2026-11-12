@@ -118,8 +118,41 @@ export class Traffic {
   }
 
   // Where a building's vehicles come and go: its garage, or else its door.
+  // If no road touches it there, any side of the building that touches a road will do (the one nearest the door).
   home(b) {
-    return this.world.entrance(b, b.def.garage ? 'garage' : 'door');
+    const w = this.world;
+    const e = w.entrance(b, b.def.garage ? 'garage' : 'door');
+    if (e && w.isRoad(...e.outside)) return e;
+    let best = null;
+    let bestD = Infinity;
+    for (let j = b.y; j < b.y + b.d; j++) {
+      for (let i = b.x; i < b.x + b.w; i++) {
+        for (const s of SIDE_LIST) {
+          const d = SIDES[s];
+          const o = [i + d.dx, j + d.dy];
+          if (w.buildingAt(...o) === b || !w.isRoad(...o)) continue;
+          const dist = e ? Math.hypot(o[0] - e.outside[0], o[1] - e.outside[1]) : 0;
+          if (dist >= bestD) continue;
+          bestD = dist;
+          best = { tile: [i, j], outside: o, side: s, dir: [d.dx, d.dy], point: { x: i + 0.5 + d.dx * 0.5, y: j + 0.5 + d.dy * 0.5 } };
+        }
+      }
+    }
+    if (best) return best;
+    // no road touches it: the nearest road within a few squares, where vehicles appear and disappear
+    const R = 6;
+    for (let j = b.y - R; j < b.y + b.d + R; j++) {
+      for (let i = b.x - R; i < b.x + b.w + R; i++) {
+        if (!w.isRoad(i, j)) continue;
+        const dx = Math.max(b.x - i, 0, i - (b.x + b.w - 1));
+        const dy = Math.max(b.y - j, 0, j - (b.y + b.d - 1));
+        const dist = Math.hypot(dx, dy);
+        if (dist >= bestD) continue;
+        bestD = dist;
+        best = { tile: [i, j], outside: [i, j], side: null, dir: null, point: { x: i + 0.5, y: j + 0.5 } };
+      }
+    }
+    return best || e;
   }
 
   // A vehicle drives out of building b onto the road in front of it.

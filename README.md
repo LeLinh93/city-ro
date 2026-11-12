@@ -74,8 +74,9 @@ What moves on its own:
 - People walk out of doors, use sidewalks (or cut across grass), and walk into other buildings.
 - Cars drive on the right-hand lane of every road and queue behind each other.
 - Police cars, the ambulance, taxis (taxi center), the bus (bus stop), mail vans (post office) and garbage
-  trucks (recycling plant) leave their building, drive around, and come home. This needs a road touching
-  the garage side (police, fire station) or the door (the others).
+  trucks (recycling plant) leave their building, drive around, and come home. They come out of the garage
+  (police, fire station) or door when a road is there, else any side touching a road; with no road touching
+  the building they appear on the nearest road within 6 squares.
 - The factory's chimneys smoke and the nuclear plant's cooling tower lets off steam.
 - Helicopters on the police station, hospital and fire station roofs take off now and then. The police
   helicopter shines a light on a building; the hospital helicopter makes a short flight.
