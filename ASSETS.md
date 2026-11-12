@@ -198,6 +198,9 @@ Without these files the game falls back to simple code-drawn cars and planes.
 
 ## Disasters (`art-source/disaster/`)
 
+`mothership-sheet.png`: the UFO, a sheet of 4 views like the vehicles (listed as `ufo` in `src/data/vehicles.js`,
+6 squares wide). `npm run art` writes `assets/vehicles/ufo.png`.
+
 `volcano-8x8.png`: the volcano, drawn like a building that covers 8 × 8 squares (any size, transparent
 background). `npm run art` shrinks it to 1024 px wide. The crater's position in that picture is set in
 `src/agents/Disasters.js` (`CRATER`).

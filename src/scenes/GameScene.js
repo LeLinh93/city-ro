@@ -15,6 +15,7 @@ import { Ships } from '../agents/Ships.js';
 import { Services } from '../agents/Services.js';
 import { Disasters } from '../agents/Disasters.js';
 import { Controls } from '../input/Controls.js';
+import { Ufo } from '../agents/Ufo.js';
 import { loadCity, saveCity } from '../saves.js';
 import { GROUND, DEPTH } from '../constants.js';
 
@@ -57,6 +58,7 @@ export class GameScene extends Phaser.Scene {
     this.services = new Services(this, world, this.traffic);
     this.people = new People(this, world, this.pf);
     this.disasters = new Disasters(this, world, { people: this.people, traffic: this.traffic, services: this.services });
+    this.ufo = new Ufo(this, world, { services: this.services, traffic: this.traffic, ships: this.ships, disasters: this.disasters });
     this.ghost = new Ghost(this);
 
     world.on('building-added', (b, silent) => {
@@ -125,6 +127,7 @@ export class GameScene extends Phaser.Scene {
     this.ships.update(time, dt);
     this.services.update(time, dt);
     this.disasters.update(time, dt);
+    this.ufo.update(time, dt);
   }
 
   // ---------- tools ----------
@@ -302,6 +305,10 @@ export class GameScene extends Phaser.Scene {
   // A quick tap with the Move tool: pick up the building under the finger to move it.
   handTap(sq) {
     if (this.disasters.tap(sq)) return; // aiming the meteor
+    // a tap on the UFO shows its 🗑️ button; a tap anywhere else hides it
+    const onUfo = this.ufo.hit(this.pointerWorld);
+    this.events.emit('ufo-tap', onUfo);
+    if (onUfo) return;
     if (this.tool !== 'hand' || this.pending) return;
     const b = this.buildingUnderPointer() || this.world.buildingAt(...sq);
     if (!b || b.ruined || this.disasters.busy) return; // ruins can be repaired or removed, not moved

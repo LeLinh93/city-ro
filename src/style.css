@@ -553,6 +553,18 @@ body.in-menu #hud {
   background: #fff;
 }
 
+/* the 🗑️ over the UFO (ui.js moves it there) */
+#ufo-del {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 5;
+  width: 60px;
+  height: 60px;
+  font-size: 28px;
+  background: #fff;
+}
+
 #place-ok.disabled {
   filter: grayscale(1);
   opacity: 0.5;

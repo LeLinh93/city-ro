@@ -371,7 +371,8 @@ function collectJobs() {
       else if (EXTS.has(extname(f).toLowerCase())) {
         const rel = relative(SRC, full).replace(/\\/g, '/');
         if (used.has(rel) || !rel.includes('/')) continue; // sheets used by jobs, or loose files in the root
-        const veh = Object.entries(VEHICLES).find(([, v]) => `vehicles/${v.sheet}` === rel);
+        // a sheet with a folder in its name (disaster/...) is found from art-source/, others in art-source/vehicles/
+        const veh = Object.entries(VEHICLES).find(([, v]) => (v.sheet.includes('/') ? v.sheet : `vehicles/${v.sheet}`) === rel);
         if (veh) {
           jobs.push({ from: rel, to: `vehicles/${veh[0]}.png`, vehicle: veh[0] });
           continue;

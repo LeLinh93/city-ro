@@ -44,6 +44,8 @@ export const VEHICLES = {
   bomber: { sheet: 'bomber-sheet.png', width: 240, ground: 'center' },
   destroyer: { sheet: 'destroyer-sheet.png', width: 320 },
   aircraftcarrier: { sheet: 'aircraftcarrier-sheet.png', width: 440 },
+  // the UFO (a disaster): 6 squares wide
+  ufo: { sheet: 'disaster/mothership-sheet.png', width: 768, ground: 'center' },
 };
 
 // Random traffic picks from these.

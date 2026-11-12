@@ -63,7 +63,8 @@ export class Traffic {
       if (this.blocked(c, dt)) continue;
       c.mover.step(dt);
       if (c.mover.done) {
-        if (c.mode === 'arrived') c.mode = 'wait'; // a fire truck at the fire: stays until called back
+        // a fire truck at the fire, or a tank at the end of its route (see Ufo.js): stays until called back
+        if (c.mode === 'arrived' || c.mode === 'offroad') c.mode = 'wait';
         else this.despawn(c);
       }
     }
@@ -235,7 +236,7 @@ export class Traffic {
   next(car) {
     const w = this.world;
     const [i, j] = car.cur;
-    if (car.mode === 'enter' || car.mode === 'field') return false;
+    if (car.mode === 'enter' || car.mode === 'field' || car.mode === 'offroad') return false;
     if (!w.isRoad(i, j)) return false;
 
     if (car.mode === 'respond') {

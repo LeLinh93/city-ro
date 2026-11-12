@@ -243,7 +243,8 @@ export class DayNight {
   // ---------- vehicle lights ----------
 
   addVehicle(v, id) {
-    const kind = /^heli|^airplane/.test(id) ? 'air' : /ship$/.test(id) ? 'ship' : 'car';
+    if (id === 'ufo') return; // glows by itself
+    const kind = /^heli|^airplane|^fighterjet|^bomber/.test(id) ? 'air' : /ship$|^destroyer|carrier$/.test(id) ? 'ship' : 'car';
     this.vehicles.add({ v, kind, size: VEHICLES[id]?.width ?? 50, ims: null, shown: false });
   }
 

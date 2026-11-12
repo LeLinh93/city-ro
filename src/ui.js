@@ -19,6 +19,8 @@ const HINTS = {
   meteor: 'Tap on the map where the meteor should hit.',
   volcano: 'Tap on the map where the volcano should come up.',
   busy: 'Wait until this disaster is over.',
+  ufo: '🛸 A UFO! The army is on its way. Tap the UFO to take it away.',
+  ufoBusy: 'There is already a UFO. Tap it to take it away.',
   brush: 'Brush: tap or drag to do one square at a time.',
   area: 'Area: drag a rectangle on the map. It is filled when you let go.',
   areaDeco: 'Area: drag a rectangle on the map. Every free spot in it is filled when you let go.',
@@ -45,6 +47,7 @@ const DISASTERS = [
   { action: 'tsunami', name: 'Tsunami', icon: '🌊' },
   { action: 'meteor', name: 'Meteor', icon: '☄️' },
   { action: 'volcano', name: 'Volcano', icon: '🌋' },
+  { action: 'ufo', name: 'UFO', icon: '🛸' },
 ];
 
 const isPaint = (id) => typeof id === 'string' && id.startsWith('paint:');
@@ -96,6 +99,12 @@ export class UI {
     this.del.addEventListener('click', () => {
       if (this.scene?.deletePlacing()) this.select('hand', false);
     });
+    // 🗑️ over the UFO, shown after tapping it
+    this.ufoDel = document.getElementById('ufo-del');
+    this.ufoDel.addEventListener('click', () => {
+      if (this.scene?.ufo.remove()) this.showHint('🛸 The UFO is gone.');
+      this.ufoDel.classList.add('hidden');
+    });
     this.flip = document.getElementById('place-flip');
     this.flip.addEventListener('click', () => this.scene?.flipPlacing());
 
@@ -126,6 +135,14 @@ export class UI {
     this.scene = scene;
     scene.events.off('picked-up'); // the scene object is reused for every city
     scene.events.off('disaster');
+    scene.events.off('ufo-tap');
+    scene.events.off('ufo');
+    scene.events.on('ufo-tap', (on) => this.ufoDel.classList.toggle('hidden', !on));
+    scene.events.on('ufo', (on) => {
+      if (on) return;
+      this.ufoDel.classList.add('hidden');
+      if (scene.ufo.ufo?.hp <= 0) this.showHint('💥 The UFO was shot down!');
+    });
     // a tap on the ground beside a waiting building: it is built where it is if that spot is OK (green),
     // else dropped (a building being moved goes back) — see settle()
     scene.events.off('tap-off-placing');
@@ -153,6 +170,7 @@ export class UI {
 
   detach() {
     this.scene = null;
+    this.ufoDel.classList.add('hidden');
     this.bar.classList.remove('locked');
     this.stop.classList.add('hidden');
     document.body.classList.remove('disaster');
@@ -318,6 +336,12 @@ export class UI {
       this.showHint(def.mode === 'brush' ? HINTS.brush : this.openMenu === 'plot' ? HINTS.area : HINTS.areaDeco);
       return;
     }
+    if (def.action === 'ufo') {
+      // the UFO doesn't lock the build bar: it is not one of the disasters that has to finish
+      this.select('hand', false);
+      this.showHint(this.scene.ufo.spawn() ? HINTS.ufo : HINTS.ufoBusy);
+      return;
+    }
     if (def.action) {
       this.select('hand', false);
       this.showHint(this.scene.disasters.start(def.action) ? HINTS[def.action] : HINTS.busy);
@@ -397,6 +421,12 @@ export class UI {
   // ---------- ✔ ✖ 🔄 above the building being placed ----------
 
   updatePlace() {
+    // the UFO's 🗑️ follows it
+    if (!this.ufoDel.classList.contains('hidden')) {
+      const u = this.scene?.ufo.anchor();
+      if (!u) this.ufoDel.classList.add('hidden');
+      else this.ufoDel.style.transform = `translate(${Math.round(u.x - 30)}px, ${Math.round(Math.max(70, u.y - 90))}px)`;
+    }
     const a = this.scene?.placingAnchor();
     if (!a || this.drag?.started) {
       this.place.classList.add('hidden');
