@@ -17,6 +17,7 @@ const BOTTOM = 0.47; // the saucer's bottom lip, below its middle, as a part of 
 const ZAP_EVERY = 20000; // ms between shots of the small side laser, which destroys one tank or plane nearby
 const ZAP_RANGE = 1100; // px from the UFO
 const ZAP_MS = 400; // how long the small beam shows
+const BLAST_MS = 550; // how long a rocket's explosion on the UFO lasts
 const NEW_TANK = 8000; // ms before a military base sends a new tank after one is destroyed
 // Blue lights at night, on the ring of lights round the bottom of the saucer (px from the middle of the picture).
 // They flash together like a plane's blinking light: bright for BLINK_ON ms every BLINK_MS.
@@ -62,6 +63,7 @@ export class Ufo {
     this.disasters = disasters;
     this.ufo = null;
     this.shots = [];
+    this.blasts = []; // rocket explosions on the UFO, being drawn
     this.tanks = new Map(); // military base id -> { car, next, reload, repath }
     this.sorties = new Map(); // `${airport id}:${plane}` -> sortie
     this.reload = new Map(); // silo id or ship -> time it can fire again
@@ -198,6 +200,7 @@ export class Ufo {
     if (this.ufo) this.renderUfo(time);
     this.stepSorties(time, dt);
     this.stepShots(time, dt);
+    this.drawBlasts(time);
     this.drawFlash(time);
   }
 
@@ -659,8 +662,11 @@ export class Ufo {
       if (time - s.t0 >= s.boost && d <= Math.max(step, 18)) {
         // hit
         u.hp -= S.dmg;
-        this.sparks.emitParticleAt(tx, ty, s.kind === 'bullet' ? 2 : 10);
-        if (s.kind !== 'bullet') this.smoke.emitParticleAt(tx, ty, 2);
+        if (s.kind === 'rocket') this.rocketBlast(tx, ty, time);
+        else {
+          this.sparks.emitParticleAt(tx, ty, s.kind === 'bullet' ? 2 : 10);
+          if (s.kind !== 'bullet') this.smoke.emitParticleAt(tx, ty, 2);
+        }
         if (u.hp <= 0 && !u.leaving) this.leave(true);
         return false;
       }
@@ -696,6 +702,35 @@ export class Ufo {
   }
 
   // The big flash when the UFO is shot down.
+  // A rocket hitting the UFO: a fireball, a shock ring, lots of sparks and smoke, and a small shake.
+  rocketBlast(x, y, time) {
+    this.blasts.push({ x, y, t0: time });
+    this.sparks.emitParticleAt(x, y, 50);
+    for (let k = 0; k < 10; k++) this.smoke.emitParticleAt(x + rand(-45, 45), y + rand(-30, 20), 1);
+    this.scene.cameras.main.shake(140, 0.0025, true);
+  }
+
+  drawBlasts(time) {
+    const g = this.g;
+    this.blasts = this.blasts.filter((b) => {
+      const t = (time - b.t0) / BLAST_MS;
+      if (t >= 1) return false;
+      const grow = 1 - (1 - t) * (1 - t); // fast at first, then slower
+      const fade = 1 - t;
+      // shock ring racing outwards
+      g.lineStyle(6 * fade + 1, 0xfff1c8, 0.8 * fade);
+      g.strokeEllipse(b.x, b.y, 50 + 300 * grow, 25 + 150 * grow);
+      // the fireball: dark orange outside, yellow, then a white-hot middle that goes first
+      g.fillStyle(0xff5a1a, 0.75 * fade);
+      g.fillCircle(b.x, b.y, 28 + 84 * grow);
+      g.fillStyle(0xffb030, 0.9 * fade);
+      g.fillCircle(b.x, b.y, 20 + 58 * grow);
+      g.fillStyle(0xfff6d8, Math.max(0, 1 - t * 2.2));
+      g.fillCircle(b.x, b.y, 12 + 34 * grow);
+      return true;
+    });
+  }
+
   drawFlash(time) {
     const f = this.flash;
     if (!f) return;
