@@ -37,7 +37,7 @@ In a city, 🏠 (top right) saves and goes back to the menu.
 | 🖌️ Plot | Pick grass, sand, water or pavement, then tap or drag to paint the ground. Water can't go under roads or buildings. |
 | 🏠 🏪 🏥 🗼 ✈️ … | Opens that group's buildings in one row (swipe sideways for more). Tap one (it appears in the middle) or drag it up onto the map. |
 | 🌳 Decoration | Works like Plot: pick one, then tap or drag on the map to put them down. The menu stays open until you tap 🌳 again. |
-| ⚡ Disaster | 🏚️ Earthquake, 🌪️ Tornado or 🌊 Tsunami ruins buildings. While it lasts, the build bar is locked and buildings can't be picked up (looking around and zooming still work). |
+| ⚡ Disaster | 🏚️ Earthquake, 🌪️ Tornado or 🌊 Tsunami ruins buildings. While it lasts, the build bar is locked and buildings can't be picked up (looking around and zooming still work); the red ⏹ Stop disaster button at the top middle ends it straight away. |
 | 🔧 Repair | Fixes every ruined building. |
 | 🚜 Remove | Tap or drag over roads and buildings. Tap Remove again to go back to Move. |
 

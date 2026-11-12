@@ -26,6 +26,16 @@ export class Disasters {
     return true;
   }
 
+  // End the disaster right now. What it already broke stays broken.
+  stop() {
+    if (!this.current) return false;
+    this.current.stop?.();
+    this.current = null;
+    this.draw.clear();
+    this.scene.events.emit('disaster', false);
+    return true;
+  }
+
   // Fix every ruined building.
   repair() {
     if (this.current) return -1;
@@ -126,6 +136,10 @@ class Earthquake {
     }
     return t > QUAKE_MS;
   }
+
+  stop() {
+    this.d.scene.cameras.main.shakeEffect.reset();
+  }
 }
 
 // ---------- tornado ----------
@@ -203,6 +217,11 @@ class Tornado {
 
     this.render(time);
     return this.state === 'fade' && this.alpha <= 0 && !this.carried.length;
+  }
+
+  stop() {
+    for (const c of this.carried) c.sprite.destroy();
+    this.carried = [];
   }
 
   render(time) {
@@ -349,6 +368,10 @@ class Tsunami {
     if (this.alpha > 0) return false;
     this.spray.destroy();
     return true;
+  }
+
+  stop() {
+    this.spray.destroy();
   }
 
   render(time) {

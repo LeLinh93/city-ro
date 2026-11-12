@@ -53,6 +53,10 @@ export class UI {
     document.getElementById('zoom-in').addEventListener('click', () => this.scene?.controls.zoomStep(1));
     document.getElementById('zoom-out').addEventListener('click', () => this.scene?.controls.zoomStep(-1));
     document.getElementById('home').addEventListener('click', () => onHome());
+    this.stop = document.getElementById('stop-disaster');
+    this.stop.addEventListener('click', () => {
+      if (this.scene?.disasters.stop()) this.showHint('Disaster stopped. 🔧 Repair fixes what it broke.');
+    });
     this.ok.addEventListener('click', () => {
       if (this.scene?.confirmPlacing()) this.select('hand', false);
     });
@@ -91,6 +95,7 @@ export class UI {
     scene.events.off('disaster');
     scene.events.on('disaster', (on) => this.lock(on));
     this.bar.classList.remove('locked');
+    this.stop.classList.add('hidden');
     scene.events.on('picked-up', (type) => {
       this.closeMenu();
       this.highlight(type);
@@ -103,6 +108,8 @@ export class UI {
   detach() {
     this.scene = null;
     this.bar.classList.remove('locked');
+    this.stop.classList.add('hidden');
+    document.body.classList.remove('disaster');
     this.closeMenu();
     this.place.classList.add('hidden');
   }
@@ -240,6 +247,8 @@ export class UI {
   // While a disaster is going on, the build bar can't be used (looking around and zooming still work).
   lock(on) {
     this.bar.classList.toggle('locked', on);
+    this.stop.classList.toggle('hidden', !on);
+    document.body.classList.toggle('disaster', on);
     if (on) this.select('hand', false);
   }
 

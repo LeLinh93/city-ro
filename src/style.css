@@ -119,6 +119,34 @@ button {
   display: none !important;
 }
 
+/* shown only while a disaster is going on */
+#stop-disaster {
+  position: fixed;
+  top: calc(12px + env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  white-space: nowrap;
+  height: 52px;
+  padding: 0 20px;
+  border: none;
+  border-radius: 26px;
+  background: #e0453a;
+  color: #fff;
+  font-size: 20px;
+  font-weight: 800;
+  box-shadow: var(--shadow);
+}
+
+#stop-disaster:active {
+  transform: translateX(-50%) scale(0.94);
+}
+
+/* the hint moves down out of the way of the Stop disaster button */
+body.disaster #hint {
+  top: calc(76px + env(safe-area-inset-top));
+}
+
 #hint {
   position: fixed;
   top: calc(16px + env(safe-area-inset-top));
@@ -426,5 +454,8 @@ body.in-menu #hud {
   #hint {
     max-width: calc(100vw - 32px);
     top: calc(80px + env(safe-area-inset-top));
+  }
+  body.disaster #hint {
+    top: calc(140px + env(safe-area-inset-top));
   }
 }
