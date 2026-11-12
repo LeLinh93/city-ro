@@ -117,6 +117,17 @@ export class BuildingView {
         this.lights.push(night.addLight(dot, { onAt: 0, blink: pt.top ? true : 'twinkle' }));
       }
     }
+    // beacons: blinking lights at chosen points, [{ px, py, color, r }] in the picture's own pixels (red by default)
+    if (night && !b.ruined && def.beacons) {
+      const top = Math.max(...depths.filter((x) => x !== null));
+      for (const g of def.beacons) {
+        const p = this.picturePoint(g.px, g.py);
+        const dot = night.glowImage(p.x, p.y, 'fx_glow').setTint(g.color ?? 0xff2a1a).setBlendMode(Phaser.BlendModes.ADD)
+          .setScale((g.r ?? 8) / 32).setDepth(top + 0.002);
+        this.parts.push(dot);
+        this.lights.push(night.addLight(dot, { onAt: 0, blink: true }));
+      }
+    }
     if (night && !b.ruined && def.glows) {
       const top = Math.max(...depths.filter((x) => x !== null));
       for (const g of def.glows) {

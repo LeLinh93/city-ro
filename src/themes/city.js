@@ -77,6 +77,7 @@ export const CITY = {
   // yard      : floodlights on poles over a flat yard at night, { every: squares apart (2), pole: lamp height px (44) },
   //             or at chosen points: { lamps: [[x, y], ...], aim: [dx, dy] (where the light falls), size: squares }
   // glows     : lamps, [{ px, py, r, color }] in the picture's own pixels (r = size of the glow, default 16)
+  // beacons   : blinking lights, [{ px, py, r, color }] in the picture's own pixels (red, r 8 by default)
   buildings: {
     police: {
       garage: { x: 1, y: 1, side: 'se' },
@@ -114,13 +115,14 @@ export const CITY = {
     //   spots   : parking spots, via = points on the way to the spot (and back)
     //   taxiOut : from the spots to the runway         takeoff : [start, lift off]; it climbs away beyond
     militaryairport: {
+      lights: false, // no floodlit walls at night, only the blinking lights on the radar mast
+      beacons: [{ px: 559, py: 274 }, { px: 596, py: 297 }, { px: 575, py: 325, color: 0xfff4dc, r: 6 }],
       // the apron shows between the hangars and around the tower, so its colour is cut out of every part
       apron: [6.0, 5.0],
-      cutColors: [0xdab73f, 0xa58d6a, 0x424344, 0x5a5c62], // yellow lines, sand, taxiway
       parts: [
-        { x: 3.0, y: 6.3, w: 2.4, d: 1.3, h: 95, thin: true }, // hangar on the left
+        { x: 2.75, y: 6.5, w: 2.65, d: 0.9, h: 66, thin: true }, // hangar on the left
         { x: 5.4, y: 6.0, w: 1.0, d: 1.0, h: 150, thin: true }, // tower
-        { x: 6.5, y: 6.3, w: 2.8, d: 1.3, h: 95, thin: true }, // hangar on the right
+        { x: 6.5, y: 6.5, w: 2.8, d: 0.9, h: 80, thin: true }, // hangar on the right
       ],
       heli: { vehicle: 'heli_military', pad: { px: 455, py: 475 }, ground: true, job: 'tour', rest: [20000, 40000] },
       lanes: [
@@ -136,14 +138,14 @@ export const CITY = {
           plane: 'bomber',
           landing: [[1.0, 2.5], [9.1, 2.5]],
           taxiIn: [[9.1, 3.45]],
-          spots: [{ x: 6.0, y: 4.8, via: [[6.0, 3.45]] }, { x: 8.3, y: 4.8, via: [[8.3, 3.45]] }],
+          spots: [{ x: 6.0, y: 4.5, via: [[6.0, 3.45]] }, { x: 8.3, y: 4.5, via: [[8.3, 3.45]] }],
           taxiOut: [[2.5, 3.45]],
           takeoff: [[2.5, 2.5], [8.0, 2.5]],
         },
       ],
     },
     // ships: several ships take turns at the berth and sail around the sea
-    militarydock: { nearWater: true, dock: { ships: ['destroyer', 'aircraftcarrier'] }, yard: { every: 2 } },
+    militarydock: { nearWater: true, dock: { ships: ['destroyer', 'aircraftcarrier'] }, lights: false },
     dockpassenger: { nearWater: true, dock: { ship: 'cruiseship' }, yard: { every: 2 } },
     dockshipment: { nearWater: true, dock: { ship: 'containership' }, yard: { every: 2 } },
     // the courtyard lit at night, and the glass pyramid glowing (squares; see src/art/floodlight.js)

@@ -296,8 +296,29 @@ export class Traffic {
     const m = car.mover;
     const pos = toWorld(m.px, m.py);
     faceVehicle(car.v, m.dir[0], m.dir[1], time);
-    // a tractor is drawn over the crop square it is on (the crop in front of it still hides its wheels)
-    car.sprite.setPosition(Math.round(pos.x), Math.round(pos.y)).setDepth(m.px + m.py + (car.field ? 0.55 : 0.05));
+    const depth = car.field ? this.fieldDepth(car, m.px, m.py) : m.px + m.py + 0.05;
+    car.sprite.setPosition(Math.round(pos.x), Math.round(pos.y)).setDepth(depth);
+  }
+
+  // A tractor is drawn on top of every crop square it overlaps (the ones in front of it too),
+  // but still behind any other building in front of it.
+  fieldDepth(car, x, y) {
+    const w = this.world;
+    const crop = this.stations.get(car.station)?.p.fields?.crop;
+    const i = Math.floor(x);
+    const j = Math.floor(y);
+    let top = x + y + 0.55;
+    let cap = Infinity;
+    for (let b = j - 1; b <= j + 1; b++) {
+      for (let a = i - 1; a <= i + 1; a++) {
+        const o = w.buildingAt(a, b);
+        if (!o) continue;
+        const d = a + b + 1.49; // the depth that square of a building is drawn at
+        if (o.type === crop) top = Math.max(top, d + 0.01);
+        else if (a + b > i + j) cap = Math.min(cap, d - 0.01);
+      }
+    }
+    return Math.min(top, Math.max(cap, x + y + 0.55));
   }
 
   // Hand a car over to something else (a tornado, a wave): it leaves the traffic without fading out.
