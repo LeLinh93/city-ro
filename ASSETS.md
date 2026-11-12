@@ -189,6 +189,10 @@ Changing a width in `src/data/vehicles.js` and running `npm run art` again re-ma
 | `helicopter-sheet-police/fire/hospital.png` | Helicopters on those roofs. |
 | `airplane-sheet.png` | Airport planes. |
 | `containership-sheet.png`, `cruiseship-sheet.png` | Ships of the container dock and the passenger dock. |
+| `tractor-sheet.png` | The farm's tractor (works the wheat fields nearby). |
+| `tank-sheet.png`, `militarytruck-sheet.png` | Out on the roads from the military base. |
+| `fighterjet-sheet.png`, `bomber-sheet.png`, `militaryhelicopter-sheet.png` | The military airport's two runways and its helipad. |
+| `destroyer-sheet.png`, `aircraftcarrier-sheet.png` | Ships of the military dock. |
 
 Without these files the game falls back to simple code-drawn cars and planes.
 

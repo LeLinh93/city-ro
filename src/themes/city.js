@@ -15,7 +15,7 @@ export const CITY = {
     House: { icon: '🏠', people: 3, attract: 1 },
     Shop: { icon: '🏪', people: 1.5, attract: 3 },
     Service: { icon: '🏥', people: 1.5, attract: 2 },
-    Factory: { icon: '🏭', people: 1.5, attract: 1 },
+    Production: { icon: '🏭', people: 1.5, attract: 1 },
     Landmark: { icon: '🗼', people: 1, attract: 4 },
     Decoration: { icon: '🌳', people: 0, attract: 0, door: false, paint: true },
     Transport: { icon: '✈️', people: 2, attract: 2 },
@@ -42,6 +42,14 @@ export const CITY = {
     postoffice: 'Post office',
     recycleplant: 'Recycling plant',
     nuclearreactor: 'Nuclear plant',
+    cattlefarm: 'Cattle farm',
+    wheatfield: 'Wheat field',
+    militarybase: 'Military base',
+    militaryairport: 'Military airport',
+    militarydock: 'Military dock',
+    militarycommand: 'Military command',
+    missilesilo: 'Missile silo',
+    townhall: 'Town hall',
   },
 
   // Extra settings for single buildings, by file name (without the size).
@@ -52,7 +60,8 @@ export const CITY = {
   // Vehicles (pictures in src/data/vehicles.js):
   // patrol    : cars that leave the garage (or the door), drive around and come back.
   //             count = how many at once, rest = [min, max] ms at home between trips, speed = faster/slower.
-  // heli      : helicopter parked on the roof. pad = the middle of the H in the picture's own pixels;
+  //             vehicles = several kinds instead of one (a random one each trip); fields = see farm below.
+  // heli      : helicopter parked on the roof (ground: true = on a pad on the ground). pad = the middle of the H in the picture's own pixels;
   //             job = 'spotlight' (shines a light on a building), 'tour' (short flight) or 'fire' (puts out fires).
   // fire      : now and then a building within `radius` squares catches fire; the station sends its
   //             helicopter and its truck (`vehicle`). every = [min, max] ms between fires.
@@ -90,6 +99,51 @@ export const CITY = {
     // chimneys: { px, py } = the top of the chimney in the picture's own pixels
     factory: { smoke: [{ px: 96, py: 63 }, { px: 163, py: 43 }] },
     nuclearreactor: { smoke: [{ px: 110, py: 74, big: true }] },
+    // fields: a tractor that works the wheat fields (or else empty land) within `radius` squares,
+    //         row by row, and drives home. With nothing to work nearby it drives around on the roads.
+    farm: {
+      patrol: { vehicle: 'tractor', count: 1, rest: [6000, 14000], speed: 0.45, fields: { radius: 8, crop: 'wheatfield' } },
+    },
+    // vehicles: several kinds take turns going out
+    militarybase: { patrol: { vehicles: ['tank', 'militarytruck'], count: 2, rest: [6000, 15000], speed: 0.7 } },
+    // Fighter jets use the short runway on the left, bombers the long inner runway, and the helicopter
+    // parks on the H (ground: true = a pad on the ground, not a roof).
+    // lanes: one per runway, each with its own planes. Only one plane of the airport moves at a time (they share
+    // the taxiway). Points are squares from the building's top corner.
+    //   landing : [touchdown, exit] along the runway   taxiIn : from the exit towards the spots
+    //   spots   : parking spots, via = points on the way to the spot (and back)
+    //   taxiOut : from the spots to the runway         takeoff : [start, lift off]; it climbs away beyond
+    militaryairport: {
+      // the apron shows between the hangars and around the tower, so its colour is cut out of every part
+      apron: [6.0, 5.0],
+      cutColors: [0xdab73f, 0xa58d6a, 0x424344, 0x5a5c62], // yellow lines, sand, taxiway
+      parts: [
+        { x: 3.0, y: 6.3, w: 2.4, d: 1.3, h: 95, thin: true }, // hangar on the left
+        { x: 5.4, y: 6.0, w: 1.0, d: 1.0, h: 150, thin: true }, // tower
+        { x: 6.5, y: 6.3, w: 2.8, d: 1.3, h: 95, thin: true }, // hangar on the right
+      ],
+      heli: { vehicle: 'heli_military', pad: { px: 455, py: 475 }, ground: true, job: 'tour', rest: [20000, 40000] },
+      lanes: [
+        {
+          plane: 'fighterjet',
+          landing: [[0.65, 4.2], [0.65, 8.3]],
+          taxiIn: [[1.6, 8.3], [1.6, 3.45]],
+          spots: [{ x: 3.0, y: 4.4, via: [[3.0, 3.45]] }, { x: 4.2, y: 4.4, via: [[4.2, 3.45]] }],
+          taxiOut: [[1.6, 3.45], [1.6, 5.0]],
+          takeoff: [[0.65, 5.0], [0.65, 8.5]],
+        },
+        {
+          plane: 'bomber',
+          landing: [[1.0, 2.5], [9.1, 2.5]],
+          taxiIn: [[9.1, 3.45]],
+          spots: [{ x: 6.0, y: 4.8, via: [[6.0, 3.45]] }, { x: 8.3, y: 4.8, via: [[8.3, 3.45]] }],
+          taxiOut: [[2.5, 3.45]],
+          takeoff: [[2.5, 2.5], [8.0, 2.5]],
+        },
+      ],
+    },
+    // ships: several ships take turns at the berth and sail around the sea
+    militarydock: { nearWater: true, dock: { ships: ['destroyer', 'aircraftcarrier'] }, yard: { every: 2 } },
     dockpassenger: { nearWater: true, dock: { ship: 'cruiseship' }, yard: { every: 2 } },
     dockshipment: { nearWater: true, dock: { ship: 'containership' }, yard: { every: 2 } },
     // the courtyard lit at night, and the glass pyramid glowing (squares; see src/art/floodlight.js)

@@ -24,22 +24,36 @@ export class Ships {
     this.foam.nightBase = 0xffffff; // darker at night
     // a ruined building counts as gone until it is repaired
     world.onBuilding((b) => {
-      if (b.def.dock && hasVehicle(scene, b.def.dock.ship)) this.docks.set(b.id, { b, ship: null, next: scene.time.now + 1500 });
+      const dock = b.def.dock;
+      if (!dock) return;
+      // dock.ship: one ship; dock.ships: a fleet that takes turns at the berth
+      const fleet = (dock.ships || [dock.ship]).filter((id) => hasVehicle(scene, id));
+      if (!fleet.length) return;
+      const now = scene.time.now;
+      this.docks.set(b.id, { b, slots: fleet.map((id, k) => ({ id, ship: null, next: now + 1500 + k * 12000 })) });
     }, (b) => {
       const d = this.docks.get(b.id);
-      if (d?.ship) this.remove(d.ship);
+      for (const slot of d?.slots || []) if (slot.ship) this.remove(slot.ship);
       this.docks.delete(b.id);
     });
   }
 
   update(time, dt) {
     for (const d of this.docks.values()) {
-      if (!d.ship) {
-        if (time > d.next) this.spawn(d, time);
-        continue;
+      for (const slot of d.slots) {
+        if (!slot.ship) {
+          if (time > slot.next && this.berthFree(d)) this.spawn(d, slot, time);
+          continue;
+        }
+        this.step(d, slot.ship, time, dt);
       }
-      this.step(d, d.ship, time, dt);
     }
+  }
+
+  // Nobody is at the berth or heading back to it, and a ship that just left is well clear of it.
+  berthFree(d, except = null) {
+    return d.slots.every(({ ship: s }) => !s || s === except
+      || (s.state !== 'docked' && s.state !== 'back' && !(s.state === 'out' && s.sailed < 5)));
   }
 
   // Where the ship parks: alongside the longest stretch of water next to the dock.
@@ -70,17 +84,17 @@ export class Ships {
     return { x: pt[0], y: pt[1], dir: AXIS[side], square: [Math.floor(pt[0]), Math.floor(pt[1])] };
   }
 
-  spawn(d, time) {
+  spawn(d, slot, time) {
     const berth = this.berth(d.b);
     if (!berth) {
-      d.next = time + 5000;
+      slot.next = time + 5000;
       return;
     }
-    const v = vehicleSprite(this.scene, d.b.def.dock.ship, null);
+    const v = vehicleSprite(this.scene, slot.id, null);
     v.im.setAlpha(0);
     this.scene.tweens.add({ targets: v.im, alpha: 1, duration: 1200 });
-    d.ship = { v, x: berth.x, y: berth.y, dir: berth.dir, berth, state: 'docked', until: time + rand(6000, 12000), legs: [] };
-    this.render(d.ship);
+    slot.ship = { v, x: berth.x, y: berth.y, dir: berth.dir, berth, state: 'docked', until: time + rand(6000, 12000), legs: [], sailed: 0 };
+    this.render(slot.ship);
   }
 
   step(d, s, time, dt) {
@@ -95,7 +109,10 @@ export class Ships {
             s.back = [...route].reverse().concat([[s.berth.x, s.berth.y]]);
             s.legs = route;
             s.state = 'out';
+            s.sailed = 0;
           }
+        } else if (!this.berthFree(d, s)) {
+          s.until = time + 4000; // another ship of the fleet is at the berth: stay out a little longer
         } else {
           s.legs = s.back;
           s.state = 'back';
@@ -103,6 +120,7 @@ export class Ships {
       }
     } else {
       let move = SPEED * dt;
+      s.sailed += move;
       while (move > 0 && s.legs.length) {
         const [tx, ty] = s.legs[0];
         const dx = tx - s.x;

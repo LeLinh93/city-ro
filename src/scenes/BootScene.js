@@ -160,15 +160,17 @@ export class BootScene extends Phaser.Scene {
     const ctx = c.getContext('2d');
     ctx.drawImage(src, 0, 0);
     // the ground's colour, for slim parts below (read before the cut)
-    let ground = null;
+    // (def.cutColors: more ground colours to cut out, e.g. paint lines and sand, as 0xRRGGBB)
+    let grounds = null;
     if (def.apron) {
       const [gx, gy] = P(def.apron[0], def.apron[1], 0).map(Math.round);
       const sample = ctx.getImageData(gx - 4, gy - 4, 9, 9).data;
-      ground = [0, 1, 2].map((ch) => {
+      grounds = [[0, 1, 2].map((ch) => {
         let sum = 0;
         for (let k = ch; k < sample.length; k += 4) sum += sample[k];
         return sum / 81;
-      });
+      })];
+      for (const c0 of def.cutColors || []) grounds.push([(c0 >> 16) & 255, (c0 >> 8) & 255, c0 & 255]);
     }
     ctx.globalCompositeOperation = 'destination-in';
     ctx.beginPath();
@@ -185,7 +187,7 @@ export class BootScene extends Phaser.Scene {
     // A slim part (thin: true, the control tower) takes in some ground around it: cut out the pixels in its box
     // that have the ground's colour (def.apron: a point on the ground) or are grass.
     const thin = def.parts.filter((p) => p.thin);
-    if (thin.length && ground) {
+    if (thin.length && grounds) {
       const img = ctx.getImageData(0, 0, c.width, H);
       const d = img.data;
       for (const p of thin) {
@@ -202,7 +204,7 @@ export class BootScene extends Phaser.Scene {
             if (!ctx.isPointInPath(box, x + 0.5, y + 0.5)) continue;
             const k = (y * c.width + x) * 4;
             const grass = d[k + 1] > d[k] + 12 && d[k + 1] > d[k + 2] + 6;
-            if (grass || Math.hypot(d[k] - ground[0], d[k + 1] - ground[1], d[k + 2] - ground[2]) < 44) d[k + 3] = 0;
+            if (grass || grounds.some((g) => Math.hypot(d[k] - g[0], d[k + 1] - g[1], d[k + 2] - g[2]) < 44)) d[k + 3] = 0;
           }
         }
       }

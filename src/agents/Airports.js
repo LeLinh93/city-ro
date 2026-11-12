@@ -4,31 +4,47 @@ import { pick, rand } from '../rng.js';
 import { ART } from '../data/art.js';
 import { vehicleSprite, faceVehicle, vehicleShadow, placeShadow } from './vehicleArt.js';
 
+// The airport's settings (one runway along +x) as a lane: see lanes in src/themes/city.js.
+function airportLane(A) {
+  const ry = A.runway.centerY;
+  const ty = A.taxiway.centerY;
+  return {
+    plane: 'airplane',
+    landing: [[A.touchdownX, ry], [A.exitX, ry]],
+    taxiIn: [[A.exitX, ty]],
+    spots: A.spots.map((s) => ({ ...s, via: [[s.x, ty]] })),
+    taxiOut: [[A.takeoffStartX, ty]],
+    takeoff: [[A.takeoffStartX, ry], [8, ry]],
+  };
+}
+
 // Planes land, taxi to a parking spot, wait, taxi back and take off.
-// Only one plane moves at a time per airport, so they never collide.
+// Each runway (lane) has its own planes, and only one of them moves at a time, so they never collide.
 export class Airports {
   constructor(scene, world) {
     this.scene = scene;
     this.world = world;
-    this.ports = new Map();
+    this.ports = new Map(); // building id -> [port per lane]
     this.variants = scene.registry.get('variants').plane;
     // a ruined building counts as gone until it is repaired
     world.onBuilding((b) => {
-      if (!b.def.airport) return;
-      this.ports.set(b.id, { b, A: b.def.airport, planes: [], busy: null, next: scene.time.now + 2500 });
+      const lanes = b.def.lanes || (b.def.airport ? [airportLane(b.def.airport)] : null);
+      if (!lanes) return;
+      const lock = { busy: null }; // shared by all the runways: one plane moves at a time
+      this.ports.set(b.id, lanes.map((A, k) => ({ b, A, lock, planes: [], next: scene.time.now + 2500 + k * 4000 })));
     }, (b) => {
-      const port = this.ports.get(b.id);
-      if (!port) return;
-      for (const p of port.planes) this.remove(p);
+      for (const port of this.ports.get(b.id) || []) for (const p of port.planes) this.remove(p);
       this.ports.delete(b.id);
     });
   }
 
   update(time, dt) {
-    for (const port of this.ports.values()) {
-      if (!port.busy && time > port.next) this.schedule(port, time);
-      for (const p of port.planes) this.step(port, p, time, dt);
-      port.planes = port.planes.filter((p) => !p.gone);
+    for (const lanes of this.ports.values()) {
+      for (const port of lanes) {
+        if (!port.lock.busy && time > port.next) this.schedule(port, time);
+        for (const p of port.planes) this.step(port, p, time, dt);
+        port.planes = port.planes.filter((p) => !p.gone);
+      }
     }
   }
 
@@ -44,45 +60,54 @@ export class Airports {
   }
 
   makePlane(port, x, y, alt) {
-    const v = vehicleSprite(this.scene, 'airplane', { key: pick(this.variants), origin: ART.planeOrigin });
+    const v = vehicleSprite(this.scene, port.A.plane || 'airplane', { key: pick(this.variants), origin: ART.planeOrigin });
     const shadow = vehicleShadow(this.scene, v);
     return { port, v, sprite: v.im, shadow, x, y, alt, legs: [], dir: [1, 0] };
   }
 
+  // Comes in low along the runway, touches down, slows to the exit, and taxis to the spot.
   land(port, spot) {
     const A = port.A;
     const s = A.spots[spot];
-    const ry = A.runway.centerY;
-    const ty = A.taxiway.centerY;
-    const p = this.makePlane(port, -16, ry, 300);
+    const [[tx, ty], [ex, ey]] = A.landing;
+    const len = Math.hypot(ex - tx, ey - ty);
+    const ux = (ex - tx) / len;
+    const uy = (ey - ty) / len;
+    const p = this.makePlane(port, tx - ux * 16, ty - uy * 16, 300);
     p.spot = spot;
     p.state = 'landing';
+    const taxi = (pts, v) => pts.map(([x, y]) => ({ x, y, v0: v, v1: v, alt: 0 }));
     p.legs = [
-      { x: A.touchdownX, y: ry, v0: 6, v1: 4.2, alt: 0 },
-      { x: A.exitX, y: ry, v0: 4.2, v1: 0.8, alt: 0 },
-      { x: A.exitX, y: ty, v0: 0.8, v1: 0.8, alt: 0 },
-      { x: s.x, y: ty, v0: 0.9, v1: 0.9, alt: 0 },
+      { x: tx, y: ty, v0: 6, v1: 4.2, alt: 0 },
+      { x: ex, y: ey, v0: 4.2, v1: 0.8, alt: 0 },
+      ...taxi(A.taxiIn || [], 0.8),
+      ...taxi(s.via || [], 0.9),
       { x: s.x, y: s.y, v0: 0.7, v1: 0.4, alt: 0 },
     ];
     p.sprite.setAlpha(0);
     this.scene.tweens.add({ targets: p.sprite, alpha: 1, duration: 1200 });
     port.planes.push(p);
-    port.busy = p;
+    port.lock.busy = p;
   }
 
+  // Taxis back out to the start of the runway, speeds up along it and climbs away.
   depart(port, p) {
     const A = port.A;
-    const ry = A.runway.centerY;
-    const ty = A.taxiway.centerY;
+    const s = A.spots[p.spot];
+    const [[sx, sy], [lx, ly]] = A.takeoff;
+    const len = Math.hypot(lx - sx, ly - sy);
+    const ux = (lx - sx) / len;
+    const uy = (ly - sy) / len;
+    const taxi = (pts, v0, v1 = v0) => pts.map(([x, y]) => ({ x, y, v0, v1, alt: 0 }));
     p.state = 'departing';
     p.legs = [
-      { x: p.x, y: ty, v0: 0.5, v1: 0.8, alt: 0 },
-      { x: A.takeoffStartX, y: ty, v0: 0.9, v1: 0.9, alt: 0 },
-      { x: A.takeoffStartX, y: ry, v0: 0.8, v1: 0.5, alt: 0 },
-      { x: 8, y: ry, v0: 0.4, v1: 5.5, alt: 0 },
-      { x: 26, y: ry, v0: 5.5, v1: 8, alt: 340 },
+      ...taxi([...(s.via || [])].reverse(), 0.5, 0.8),
+      ...taxi(A.taxiOut || [], 0.9),
+      { x: sx, y: sy, v0: 0.8, v1: 0.5, alt: 0 },
+      { x: lx, y: ly, v0: 0.4, v1: 5.5, alt: 0 },
+      { x: lx + ux * 18, y: ly + uy * 18, v0: 5.5, v1: 8, alt: 340 },
     ];
-    port.busy = p;
+    port.lock.busy = p;
   }
 
   step(port, p, time, dt) {
@@ -115,7 +140,7 @@ export class Airports {
   }
 
   arrive(port, p, time) {
-    port.busy = null;
+    port.lock.busy = null;
     if (p.state === 'landing') {
       p.state = 'parked';
       p.until = time + rand(12000, 25000);

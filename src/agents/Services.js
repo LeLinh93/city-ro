@@ -91,13 +91,18 @@ export class Services {
     const c = this.center(b);
     const v = vehicleSprite(this.scene, cfg.vehicle, null);
     const shadow = vehicleShadow(this.scene, v);
+    // a pad on the ground (ground: true) is its own ground point; a roof pad stands above the middle of the building
+    const groundY = cfg.ground ? pad.y : c.y;
     const h = {
       b, cfg, v, shadow,
-      home: { x: pad.x, y: c.y }, // ground point under the pad
-      roof: c.y - pad.y, // height of the pad
-      x: pad.x, y: c.y, alt: c.y - pad.y,
+      home: { x: pad.x, y: groundY }, // ground point under the pad
+      roof: groundY - pad.y, // height of the pad
+      x: pad.x, y: groundY, alt: groundY - pad.y,
       dir: [0, 1], state: 'parked', until: this.scene.time.now + rand(...(cfg.rest || [20000, 40000])),
     };
+    // parked on a roof it is drawn over the whole building; on the ground, like a plane on the apron
+    const g = toGrid(pad.x, pad.y);
+    h.parkDepth = cfg.ground ? g.fx + g.fy + 1.2 : b.x + b.y + b.w + b.d - 0.45;
     this.helis.set(b.id, h);
     this.renderHeli(h, this.scene.time.now);
   }
@@ -204,8 +209,7 @@ export class Services {
     const bob = flying && h.alt > h.roof + 4 ? Math.sin(time / 260) * 3 : 0;
     faceVehicle(h.v, h.dir[0], h.dir[1]);
     h.v.im.setPosition(Math.round(h.x), Math.round(h.y - h.alt + bob));
-    const b = h.b;
-    h.v.im.setDepth(flying ? DEPTH.AIR + h.alt : b.x + b.y + b.w + b.d - 0.45);
+    h.v.im.setDepth(flying ? DEPTH.AIR + h.alt : h.parkDepth);
     // shadow: on the roof under a parked helicopter, on the ground under a flying one
     const lift = Math.min(1, h.alt / 300);
     if (flying) placeShadow(h.shadow, h.v, h.x + 6, h.y + 4, 0.2 * (1 - lift * 0.5), DEPTH.SHADOW, 1 - lift * 0.25);

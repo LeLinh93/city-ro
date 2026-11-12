@@ -3,6 +3,7 @@ import { toWorld } from '../iso.js';
 import { pick, rand } from '../rng.js';
 import { ART } from '../data/art.js';
 import { Mover } from './Mover.js';
+import { planFieldTrip } from './fields.js';
 import { CARS } from '../data/vehicles.js';
 import { vehicleSprite, faceVehicle, hasVehicle } from './vehicleArt.js';
 
@@ -169,12 +170,33 @@ export class Traffic {
   }
 
   spawnPatrol(st, slot) {
-    const car = this.leave('service', st.b, st.p.vehicle, SPEED.police * (st.p.speed || 1));
+    const id = st.p.vehicles ? pick(st.p.vehicles) : st.p.vehicle;
+    const speed = SPEED.police * (st.p.speed || 1);
+    if (st.p.fields && this.spawnFieldTrip(st, slot, id, speed)) return true;
+    const car = this.leave('service', st.b, id, speed);
     if (!car) return false;
     car.slot = st.slots.indexOf(slot);
     car.mode = 'patrol';
     car.steps = 0;
     car.patrolLen = Math.floor(rand(15, 35));
+    slot.car = car;
+    return true;
+  }
+
+  // A farm's tractor: out to a field nearby, up and down its rows, and home (see fields.js).
+  // Returns false when there is nothing to work, so the tractor drives on the roads instead.
+  spawnFieldTrip(st, slot, id, speed) {
+    const trip = planFieldTrip(this.world, st.b, st.p.fields);
+    if (!trip) return false;
+    const { start, end, path } = trip;
+    const car = this.makeCar('service', id, 'police_car', start.point.x, start.point.y, false, speed);
+    car.station = st.b.id;
+    car.slot = st.slots.indexOf(slot);
+    car.mode = 'field';
+    car.field = true;
+    for (const [i, j] of path) car.mover.push(i + 0.5, j + 0.5, this.world.isRoad(i, j));
+    car.mover.push(end.point.x, end.point.y, false);
+    car.cur = path[path.length - 1];
     slot.car = car;
     return true;
   }
@@ -213,7 +235,7 @@ export class Traffic {
   next(car) {
     const w = this.world;
     const [i, j] = car.cur;
-    if (car.mode === 'enter') return false;
+    if (car.mode === 'enter' || car.mode === 'field') return false;
     if (!w.isRoad(i, j)) return false;
 
     if (car.mode === 'respond') {
@@ -274,7 +296,8 @@ export class Traffic {
     const m = car.mover;
     const pos = toWorld(m.px, m.py);
     faceVehicle(car.v, m.dir[0], m.dir[1], time);
-    car.sprite.setPosition(Math.round(pos.x), Math.round(pos.y)).setDepth(m.px + m.py + 0.05);
+    // a tractor is drawn over the crop square it is on (the crop in front of it still hides its wheels)
+    car.sprite.setPosition(Math.round(pos.x), Math.round(pos.y)).setDepth(m.px + m.py + (car.field ? 0.55 : 0.05));
   }
 
   // Hand a car over to something else (a tornado, a wave): it leaves the traffic without fading out.

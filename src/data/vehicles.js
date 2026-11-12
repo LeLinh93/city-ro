@@ -35,6 +35,15 @@ export const VEHICLES = {
   airplane: { sheet: 'airplane-sheet.png', width: 200, ground: 'center' },
   containership: { sheet: 'containership-sheet.png', width: 352 },
   cruiseship: { sheet: 'cruiseship-sheet.png', width: 320 },
+  // farm and military
+  tractor: { sheet: 'tractor-sheet.png', width: 52 },
+  tank: { sheet: 'tank-sheet.png', width: 66 },
+  militarytruck: { sheet: 'militarytruck-sheet.png', width: 68 },
+  heli_military: { sheet: 'militaryhelicopter-sheet.png', width: 96, anchor: HELI },
+  fighterjet: { sheet: 'fighterjet-sheet.png', width: 130, ground: 'center' },
+  bomber: { sheet: 'bomber-sheet.png', width: 240, ground: 'center' },
+  destroyer: { sheet: 'destroyer-sheet.png', width: 320 },
+  aircraftcarrier: { sheet: 'aircraftcarrier-sheet.png', width: 440 },
 };
 
 // Random traffic picks from these.
