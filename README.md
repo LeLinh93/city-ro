@@ -55,14 +55,14 @@ Buildings don't need roads. You can build on grass and sand, but not on water. C
 browser a moment after every change, once a minute, and when you leave the city or the app.
 
 Disasters (one at a time):
-- 🏚️ Earthquake: the screen shakes, cracks open in the ground, and a third to a half of the buildings fall in.
+- 🏚️ Earthquake: the screen shakes and a third to a half of the buildings fall in.
 - 🌪️ Tornado: comes in from outside the city, wanders around it for a while, ruins every building it touches
   and sucks up people and cars, then leaves.
 - 🌊 Tsunami: one huge wave from the side with the most sea. It ruins buildings in its way and gets smaller
   over land, stopping after about 30 squares.
 
 A ruined building keeps its place but stops working (no people, patrols, helicopters, planes, ships or fires)
-until 🔧 Repair. Ruins can't be moved, but 🚜 Remove clears them. Repair also closes the cracks.
+until 🔧 Repair. Ruins can't be moved, but 🚜 Remove clears them.
 
 What moves on its own:
 - People walk out of doors, use sidewalks (or cut across grass), and walk into other buildings.

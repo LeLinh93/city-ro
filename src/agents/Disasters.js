@@ -10,7 +10,6 @@ export class Disasters {
     this.people = people;
     this.traffic = traffic;
     this.current = null;
-    this.cracks = scene.add.graphics().setDepth(DEPTH.ROAD_ARM + 0.5); // above roads, under everything standing
     this.draw = scene.add.graphics().setDepth(DEPTH.AIR - 3);
   }
 
@@ -27,10 +26,9 @@ export class Disasters {
     return true;
   }
 
-  // Fix every ruined building and close the cracks.
+  // Fix every ruined building.
   repair() {
     if (this.current) return -1;
-    this.cracks.clear();
     return this.world.repairAll();
   }
 
@@ -100,8 +98,6 @@ class Earthquake {
     const scene = d.scene;
     this.t0 = scene.time.now;
     this.nextShake = 0;
-    const box = d.cityBounds();
-    this.box = box;
 
     // a third to a half of the buildings fall down at random moments during the quake
     const list = [...d.world.buildings.values()].filter((b) => !b.ruined && b.def.menu !== 'Decoration');
@@ -110,14 +106,6 @@ class Earthquake {
     for (let k = 0; k < n && list.length; k++) {
       const b = list.splice(Math.floor(Math.random() * list.length), 1)[0];
       this.falls.push({ b, at: this.t0 + rand(800, QUAKE_MS - 1200) });
-    }
-
-    // cracks open one after another
-    const area = (box.x1 - box.x0) * (box.y1 - box.y0);
-    const count = Math.max(5, Math.min(18, Math.round(area / 40)));
-    this.cracks = [];
-    for (let k = 0; k < count; k++) {
-      this.cracks.push({ at: this.t0 + rand(300, QUAKE_MS - 1500), lines: crackLines(rand(box.x0, box.x1), rand(box.y0, box.y1)) });
     }
   }
 
@@ -136,46 +124,7 @@ class Earthquake {
         this.d.world.ruinBuilding(f.b);
       }
     }
-    for (const c of this.cracks) {
-      if (!c.done && time > c.at) {
-        c.done = true;
-        drawCrack(this.d.cracks, c.lines);
-      }
-    }
     return t > QUAKE_MS;
-  }
-}
-
-// A jagged crack with a few branches, starting at square (x, y): a list of world-pixel polylines.
-function crackLines(x, y) {
-  const lines = [];
-  const grow = (px, py, angle, len, depth) => {
-    const pts = [[px, py]];
-    let a = angle;
-    for (let s = 0; s < len; s++) {
-      a += rand(-0.6, 0.6);
-      const step = rand(8, 15);
-      px += Math.cos(a) * step;
-      py += Math.sin(a) * step * 0.55; // flatter on the ground
-      pts.push([px, py]);
-      if (depth < 2 && Math.random() < 0.15) grow(px, py, a + pick([-1, 1]) * rand(0.6, 1.2), Math.floor(len * 0.5), depth + 1);
-    }
-    lines.push({ pts, width: depth ? 1.5 : 3 });
-  };
-  const p = toWorld(x, y);
-  const angle = rand(0, Math.PI * 2);
-  const len = Math.floor(rand(6, 14));
-  grow(p.x, p.y, angle, len, 0);
-  grow(p.x, p.y, angle + Math.PI, Math.floor(len * 0.7), 0);
-  return lines;
-}
-
-function drawCrack(g, lines) {
-  for (const { pts, width } of lines) {
-    g.lineStyle(width + 1.5, 0x8a6a4a, 0.55);
-    g.strokePoints(pts.map(([x, y]) => ({ x, y: y + 1 })));
-    g.lineStyle(width, 0x2b1d14, 0.95);
-    g.strokePoints(pts.map(([x, y]) => ({ x, y })));
   }
 }
 
@@ -185,6 +134,7 @@ const TWISTER_SPEED = 1.7; // squares per second
 const TWISTER_STAY = 15000; // ms it wanders around the city
 const TWISTER_R = 1.1; // squares: buildings this close are ruined
 const SUCK_R = 1.8; // squares: people and cars this close are sucked up
+const TWISTER_SIZE = 4.5; // how big it looks (it only damages within TWISTER_R)
 
 class Tornado {
   constructor(d) {
@@ -261,36 +211,38 @@ class Tornado {
     const p = toWorld(this.x, this.y);
     const al = this.alpha;
     const t = time / 1000;
+    const S = TWISTER_SIZE;
+    const H = 200 * S; // funnel height, px
+    const RINGS = 44;
+    // radius at height f (0 = ground, 1 = top): narrow at the bottom, opening wide at the top
+    const radius = (f) => (7 + f * 17 * 1.2 + (f * 17) ** 2 * 0.22) * S;
+    const sway = (f) => Math.sin(t * 1.6 + f * 6) * f * 16 * S;
     // dust swirling at the bottom
     g.fillStyle(0x9b8a70, 0.35 * al);
-    g.fillEllipse(p.x, p.y, 90 + Math.sin(t * 5) * 6, 30);
-    // the funnel: stacked rings, wider at the top, swaying
-    const rings = 18;
-    for (let k = 0; k < rings; k++) {
-      const h = k * 11;
-      const r = 7 + k * k * 0.22 + k * 1.2;
-      const sway = Math.sin(t * 2.2 + k * 0.35) * k * 0.9;
+    g.fillEllipse(p.x, p.y, (90 + Math.sin(t * 5) * 6) * S, 30 * S);
+    // the funnel: stacked rings, swaying
+    for (let k = 0; k < RINGS; k++) {
+      const f = k / (RINGS - 1);
+      const r = radius(f);
       const shade = k % 2 ? 0x8d929b : 0xa3a8b0;
-      g.fillStyle(shade, (0.72 - k * 0.012) * al);
-      g.fillEllipse(p.x + sway, p.y - h, r * 2, Math.max(6, r * 0.55));
+      g.fillStyle(shade, (0.72 - f * 0.2) * al);
+      g.fillEllipse(p.x + sway(f), p.y - f * H, r * 2, Math.max(6, r * 0.55));
     }
     // bits of debris flying around
     g.fillStyle(0x4a4038, 0.9 * al);
-    for (let i = 0; i < 26; i++) {
-      const h = (i * 53) % 190;
-      const k = h / 11;
-      const r = 7 + k * k * 0.22 + k * 1.2 + 6;
-      const ang = t * (5 - h / 80) + i * 2.4;
-      const sway = Math.sin(t * 2.2 + k * 0.35) * k * 0.9;
-      g.fillRect(p.x + sway + Math.cos(ang) * r, p.y - h + Math.sin(ang) * r * 0.28, 3, 2);
+    for (let i = 0; i < 70; i++) {
+      const f = ((i * 53) % 97) / 97;
+      const r = radius(f) + 6 * S;
+      const ang = t * (5 - f * 2.5) + i * 2.4;
+      g.fillRect(p.x + sway(f) + Math.cos(ang) * r, p.y - f * H + Math.sin(ang) * r * 0.28, 2 * S, 1.5 * S);
     }
 
     // people and cars spiral up into the funnel and are gone
     this.carried = this.carried.filter((c) => {
-      const k = Math.min(1, (time - c.t0) / 1400);
+      const k = Math.min(1, (time - c.t0) / 2200);
       const ang = c.a + k * 14;
-      const r = 26 * (1 - k * 0.5) + 6;
-      c.sprite.setPosition(p.x + Math.cos(ang) * r, p.y - k * 170 + Math.sin(ang) * r * 0.3)
+      const r = radius(k * 0.8) * (1 - k * 0.3);
+      c.sprite.setPosition(p.x + sway(k * 0.8) + Math.cos(ang) * r, p.y - k * 0.8 * H + Math.sin(ang) * r * 0.3)
         .setDepth(DEPTH.AIR - 2).setAlpha(1 - k * k).setScale(1 - k * 0.5).setAngle(k * 720);
       if (k >= 1) {
         c.sprite.destroy();
@@ -304,7 +256,9 @@ class Tornado {
 // ---------- tsunami ----------
 
 const WAVE_SPEED = 3.6; // squares per second
-const WAVE_H = 70; // height of the wave out at sea, px
+const WAVE_H = 210; // height of the wave out at sea, px
+const WAVE_BACK = 2.6; // squares from the crest down to the water behind it (how thick the wave looks)
+const WAVE_LEAN = 0.55; // squares the crest leans out over its front
 const INLAND = 30; // squares it can travel over land, getting smaller every square
 
 class Tsunami {
@@ -327,6 +281,16 @@ class Tsunami {
     for (let l = 0; l < N; l++) this.lanes.push({ front: start, start, land: 0, done: false, last: null });
     this.state = 'run';
     this.alpha = 1;
+    // spray blown off the crest, drifting back over the wave
+    const ahead = toWorld(...this.sq(this.side, this.side.dir, 0));
+    const zero = toWorld(0, 0);
+    this.ahead = { x: (ahead.x - zero.x) / 72, y: (ahead.y - zero.y) / 72 }; // screen direction the wave moves in
+    this.spray = d.scene.add.particles(0, 0, 'fx_smoke', {
+      lifespan: { min: 900, max: 1600 }, tint: 0xffffff,
+      speedX: { onEmit: () => -this.ahead.x * rand(40, 90) + rand(-25, 25) },
+      speedY: { onEmit: () => -this.ahead.y * rand(40, 90) - rand(40, 110) },
+      gravityY: 70, scale: { start: 1.4, end: 4 }, alpha: { start: 0.85, end: 0 }, emitting: false,
+    }).setDepth(DEPTH.AIR - 2);
   }
 
   // Square at distance `along` the wave's way, in lane `l`, as map coordinates.
@@ -381,11 +345,13 @@ class Tsunami {
     } else {
       this.alpha -= dt / 2.5;
     }
-    this.render();
-    return this.alpha <= 0;
+    this.render(time);
+    if (this.alpha > 0) return false;
+    this.spray.destroy();
+    return true;
   }
 
-  render() {
+  render(time) {
     const g = this.d.draw;
     g.clear();
     const s = this.side;
@@ -394,31 +360,82 @@ class Tsunami {
       const [x, y] = s.axis === 'x' ? [along, l] : [l, along];
       return toWorld(x, y);
     };
+    const up = (q, h) => ({ x: q.x, y: q.y - h });
     const al = this.alpha;
+    const t = time / 1000;
+    const lanes = this.lanes;
+
     // flooded water behind the wave
     g.fillStyle(0x3f8fd8, 0.38 * al);
     for (let l = 0; l < N; l++) {
-      const lane = this.lanes[l];
-      const pts = [P(lane.start, l), P(lane.start, l + 1), P(lane.front, l + 1), P(lane.front, l)];
-      g.fillPoints(pts, true);
+      const lane = lanes[l];
+      g.fillPoints([P(lane.start, l), P(lane.start, l + 1), P(lane.front, l + 1), P(lane.front, l)], true);
+    }
+
+    // the tail: rows of foam left behind the wave, fading out
+    for (let k = 1; k <= 6; k++) {
+      g.lineStyle(k < 3 ? 3 : 2, 0xf2fbff, 0.6 * (1 - k / 7) * al);
+      for (let l = 0; l < N; l++) {
+        const lane = lanes[l];
+        const back = lane.front - s.dir * (WAVE_BACK + k * 1.1 + 0.4 * Math.sin(t * 2 + l * 0.7 + k));
+        if ((back - lane.start) * s.dir < 0) continue;
+        const a = P(back + 0.15 * Math.sin(l * 1.3 + k), l);
+        const b = P(back + 0.15 * Math.sin((l + 1) * 1.3 + k), l + 1);
+        g.lineBetween(a.x, a.y, b.x, b.y);
+      }
     }
     if (this.state !== 'run') return;
-    // the wall of water, leaning forward, with foam on top
-    for (let l = 0; l < N; l++) {
-      const lane = this.lanes[l];
-      if (lane.done) continue;
-      const h = this.height(lane);
-      if (h < 2) continue;
+
+    // the wave: a long slope at the back, a steep face at the front leaning forward, foam on the crest.
+    // Whatever is nearer the viewer is drawn last.
+    const towardViewer = this.ahead.y > 0;
+    const slope = (l, lane, h) => {
+      const c1 = up(P(lane.front + s.dir * WAVE_LEAN, l), h);
+      const c2 = up(P(lane.front + s.dir * WAVE_LEAN, l + 1), h);
+      const b1 = P(lane.front - s.dir * WAVE_BACK, l);
+      const b2 = P(lane.front - s.dir * WAVE_BACK, l + 1);
+      g.fillStyle(0x3d8ad8, 0.92);
+      g.fillPoints([b1, b2, c2, c1], true);
+      // a lighter band just behind the crest
+      const m1 = up(P(lane.front - s.dir * WAVE_BACK * 0.35, l), h * 0.62);
+      const m2 = up(P(lane.front - s.dir * WAVE_BACK * 0.35, l + 1), h * 0.62);
+      g.fillStyle(0x62a8ec, 0.9);
+      g.fillPoints([m1, m2, c2, c1], true);
+    };
+    const face = (l, lane, h) => {
       const a = P(lane.front, l);
       const b = P(lane.front, l + 1);
-      const lean = s.dir * 0.25;
-      const ta = P(lane.front + lean, l);
-      const tb = P(lane.front + lean, l + 1);
-      g.fillStyle(0x2a6fc0, 0.9);
-      g.fillPoints([a, b, { x: tb.x, y: tb.y - h }, { x: ta.x, y: ta.y - h }], true);
-      g.fillStyle(0xe6f6ff, 0.95);
-      const foam = Math.max(3, h * 0.25);
-      g.fillPoints([{ x: ta.x, y: ta.y - h + foam }, { x: tb.x, y: tb.y - h + foam }, { x: tb.x, y: tb.y - h }, { x: ta.x, y: ta.y - h }], true);
+      const c1 = up(P(lane.front + s.dir * WAVE_LEAN, l), h);
+      const c2 = up(P(lane.front + s.dir * WAVE_LEAN, l + 1), h);
+      const mid1 = { x: (a.x + c1.x) / 2, y: (a.y + c1.y) / 2 };
+      const mid2 = { x: (b.x + c2.x) / 2, y: (b.y + c2.y) / 2 };
+      g.fillStyle(0x16508f, 0.95);
+      g.fillPoints([a, b, mid2, mid1], true);
+      g.fillStyle(0x2468b4, 0.95);
+      g.fillPoints([mid1, mid2, c2, c1], true);
+    };
+    const live = [];
+    for (let l = 0; l < N; l++) {
+      const lane = lanes[l];
+      const h = lane.done ? 0 : this.height(lane);
+      if (h >= 3) live.push([l, lane, h]);
+    }
+    for (const [l, lane, h] of live) (towardViewer ? slope : face)(l, lane, h);
+    for (const [l, lane, h] of live) (towardViewer ? face : slope)(l, lane, h);
+
+    // foam on the crest: a white band with lumps that bubble, and spray blowing off it
+    for (const [l, lane, h] of live) {
+      const c1 = up(P(lane.front + s.dir * WAVE_LEAN, l), h);
+      const c2 = up(P(lane.front + s.dir * WAVE_LEAN, l + 1), h);
+      const band = Math.max(4, h * 0.09);
+      g.fillStyle(0xf4fbff, 0.97);
+      g.fillPoints([c1, c2, { x: c2.x, y: c2.y + band }, { x: c1.x, y: c1.y + band }], true);
+      for (let k = 0; k < 2; k++) {
+        const f = (k + 0.5) / 2;
+        const r = Math.max(2.5, h * 0.045) * (0.8 + 0.4 * Math.sin(t * 6 + l * 1.7 + k * 2));
+        g.fillCircle(c1.x + (c2.x - c1.x) * f, c1.y + (c2.y - c1.y) * f - r * 0.4, r);
+      }
+      if (Math.random() < 0.12 * Math.min(1, h / 60)) this.spray.emitParticleAt(c1.x + rand(-8, 8), c1.y, 1);
     }
   }
 }
