@@ -8,16 +8,21 @@ export const hasVehicle = (scene, id) => scene.textures.exists(`veh:${id}`);
 
 // fallback: { key, origin: {x, y} } of the stand-in sprite sheet.
 export function vehicleSprite(scene, id, fallback) {
+  let v;
   if (hasVehicle(scene, id)) {
-    return { im: scene.add.image(0, 0, `veh:${id}`, 0).setOrigin(0.5, 0.5), four: true, perRow: 1 };
+    v = { im: scene.add.image(0, 0, `veh:${id}`, 0).setOrigin(0.5, 0.5), four: true, perRow: 1 };
+  } else {
+    const tex = scene.textures.get(fallback.key);
+    const im = scene.add.image(0, 0, fallback.key, 0).setOrigin(fallback.origin.x, fallback.origin.y);
+    v = { im, four: false, perRow: Math.max(1, Math.floor((tex.frameTotal - 1) / 2)) };
   }
-  const tex = scene.textures.get(fallback.key);
-  const im = scene.add.image(0, 0, fallback.key, 0).setOrigin(fallback.origin.x, fallback.origin.y);
-  return { im, four: false, perRow: Math.max(1, Math.floor((tex.frameTotal - 1) / 2)) };
+  scene.dayNight?.addVehicle(v, id); // headlights at night
+  return v;
 }
 
 // Turn the sprite to face grid direction (dx, dy).
 export function faceVehicle(v, dx, dy, time = 0, frameMs = 220) {
+  v.dir = [dx, dy];
   let frame;
   if (v.four) {
     frame = VIEWS.indexOf(sideFromDir(dx, dy));

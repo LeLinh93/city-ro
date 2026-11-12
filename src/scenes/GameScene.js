@@ -5,6 +5,8 @@ import { World } from '../world/World.js';
 import { GroundView } from '../world/GroundView.js';
 import { BuildingView, Ghost, footprintPlacement } from '../world/BuildingView.js';
 import { Effects } from '../world/Effects.js';
+import { DayNight } from '../world/DayNight.js';
+import { Weather } from '../world/Weather.js';
 import { Pathfinder } from '../agents/Pathfinder.js';
 import { People } from '../agents/People.js';
 import { Traffic } from '../agents/Traffic.js';
@@ -32,8 +34,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   create() {
-    const world = World.fromData(loadCity(this.city.id)) || new World((Math.random() * 2 ** 31) | 0);
+    const saved = loadCity(this.city.id);
+    const world = World.fromData(saved) || new World((Math.random() * 2 ** 31) | 0);
     this.world = world;
+    this.dayNight = new DayNight(this, saved?.time); // first, so everything made after it gets the time of day's colour
+    this.weather = new Weather(this);
     this.views = new Map();
     this.tool = 'hand';
     this.rot = 0;
@@ -92,7 +97,7 @@ export class GameScene extends Phaser.Scene {
       if (b && ruined) world.ruinBuilding(b, { silent: true });
     }
     world.pendingBuildings = null;
-    if (!loadCity(this.city.id)) this.saveNow(); // a brand new city is saved right away
+    if (!saved) this.saveNow(); // a brand new city is saved right away
 
     const cam = this.cameras.main;
     cam.setRoundPixels(true);
@@ -110,6 +115,8 @@ export class GameScene extends Phaser.Scene {
 
   update(time, delta) {
     const dt = Math.min(delta, 50) / 1000;
+    this.weather.update(time, dt);
+    this.dayNight.update(time, dt);
     this.ground.update(time);
     this.fx.update(time);
     this.people.update(time, dt);
@@ -559,6 +566,7 @@ export class GameScene extends Phaser.Scene {
     if (this.saveTimer) this.saveTimer.remove();
     this.saveTimer = null;
     const data = this.world.serialize();
+    data.time = Math.round(this.dayNight.hour * 100) / 100;
     // a building that is being moved is saved where it was
     const m = this.pending?.moving;
     if (this.pending?.group) {

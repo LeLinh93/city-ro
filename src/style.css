@@ -119,6 +119,84 @@ button {
   display: none !important;
 }
 
+/* ---------- day / night clock (top left) ---------- */
+
+#clock {
+  position: fixed;
+  top: calc(12px + env(safe-area-inset-top));
+  left: calc(12px + env(safe-area-inset-left));
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 56px;
+  padding: 0 14px 0 4px;
+  border-radius: 28px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  box-shadow: var(--shadow);
+  color: inherit;
+  font: inherit;
+}
+
+#clock:active {
+  transform: scale(0.94);
+}
+
+/* the 24 hours round the dial, midnight at the top: night, morning, day, evening */
+.clock-dial {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: conic-gradient(#2a3466 0deg 60deg, #f0a8c4 76deg, #8fd0ff 95deg 290deg, #f6a25e 312deg, #2a3466 330deg 360deg);
+}
+
+.clock-hand {
+  position: absolute;
+  left: 22px;
+  top: 2px;
+  width: 4px;
+  height: 22px;
+  border-radius: 2px;
+  background: #fff;
+  box-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
+  transform-origin: 2px 22px;
+}
+
+.clock-icon {
+  position: absolute;
+  inset: 11px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+  font-size: 17px;
+  line-height: 26px;
+  text-align: center;
+}
+
+.clock-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.1;
+}
+
+.clock-time {
+  font-size: 19px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.clock-weather {
+  font-size: 24px;
+  margin-left: -2px;
+}
+
+.clock-mode {
+  font-size: 12px;
+  font-weight: 700;
+  opacity: 0.7;
+}
+
 /* shown only while a disaster is going on */
 #stop-disaster {
   position: fixed;

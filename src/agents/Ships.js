@@ -21,6 +21,7 @@ export class Ships {
       scaleX: { start: 0.9, end: 3.4 }, scaleY: { start: 0.45, end: 1.7 },
       alpha: { start: 0.8, end: 0 }, tint: 0xffffff, emitting: false,
     }).setDepth(DEPTH.SHADOW + 1);
+    this.foam.nightBase = 0xffffff; // darker at night
     // a ruined building counts as gone until it is repaired
     world.onBuilding((b) => {
       if (b.def.dock && hasVehicle(scene, b.def.dock.ship)) this.docks.set(b.id, { b, ship: null, next: scene.time.now + 1500 });

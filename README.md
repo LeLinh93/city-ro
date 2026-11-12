@@ -33,6 +33,19 @@ and 📂 next to ＋ loads a city from a file on the device as a new city. Use t
 city to another device, since cities are otherwise stored only in this browser.
 In a city, 🏠 (top right) saves and goes back to the menu.
 
+The clock at the top left shows the time of day. A whole day takes 6 minutes: about 3½ minutes of day, a
+short orange evening, 1½ minutes of night and a pink morning. At night the city turns dark blue, building walls
+light up in warm yellow one after another, tall landmarks get spotlights from the ground, towers twinkle
+with small white lights and a blinking red one on top, the stadiums, the docks' yards and the airport are floodlit, lamp posts shine on the ground, cars drive with headlights and red tail lights,
+and helicopters, planes and ships blink. Tap the clock to switch between **Auto** (day and night go round),
+**🔒 Day** (always day) and **🔒 Night** (always night). The time is saved with the city; the setting is the
+same for every city.
+
+Weather: every few minutes it may start to rain for 1 to 2 minutes (the first shower comes 1½ to 3½ minutes
+after opening a city). Rain falls over the screen, the city turns a little grey and 🌧️ shows next to the clock.
+In the rain every fire goes out by itself 6 seconds after it starts (fires already burning get 6 seconds from
+when the rain starts), disasters' fires too.
+
 | Button | What it does |
 |---|---|
 | ✋ Move | Drag to look around. Two fingers pinch to zoom (works with every tool). |
@@ -111,7 +124,7 @@ in the build bar.
 | `src/ui.js` | Build bar, building menus, ✔ ✖ 🔄 buttons. |
 | `src/data/art.js` | Art file counts and sprite-sheet frame sizes. |
 | `src/constants.js` | Square size, map size, zoom levels, speeds, lane offsets. |
-| `src/world/` | Map generation, world state, ground and road drawing, building drawing, effects. |
+| `src/world/` | Map generation, world state, ground and road drawing, building drawing, effects, day and night (`DayNight.js`), weather (`Weather.js`). |
 | `src/agents/` | People, cars, patrols, fire trucks, helicopters and fires, planes, ships, disasters, path finding. |
 | `src/input/Controls.js` | Touch and mouse: tools, pan, pinch-zoom. |
 | `src/art/` | Pixel rasterizer and the code-drawn art (grass, sand, water, roads, people, cars, planes, ruined buildings). |

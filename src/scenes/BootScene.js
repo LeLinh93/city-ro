@@ -159,6 +159,17 @@ export class BootScene extends Phaser.Scene {
     c.height = H;
     const ctx = c.getContext('2d');
     ctx.drawImage(src, 0, 0);
+    // the ground's colour, for slim parts below (read before the cut)
+    let ground = null;
+    if (def.apron) {
+      const [gx, gy] = P(def.apron[0], def.apron[1], 0).map(Math.round);
+      const sample = ctx.getImageData(gx - 4, gy - 4, 9, 9).data;
+      ground = [0, 1, 2].map((ch) => {
+        let sum = 0;
+        for (let k = ch; k < sample.length; k += 4) sum += sample[k];
+        return sum / 81;
+      });
+    }
     ctx.globalCompositeOperation = 'destination-in';
     ctx.beginPath();
     for (const p of def.parts) {
@@ -171,6 +182,32 @@ export class BootScene extends Phaser.Scene {
       ctx.closePath();
     }
     ctx.fill();
+    // A slim part (thin: true, the control tower) takes in some ground around it: cut out the pixels in its box
+    // that have the ground's colour (def.apron: a point on the ground) or are grass.
+    const thin = def.parts.filter((p) => p.thin);
+    if (thin.length && ground) {
+      const img = ctx.getImageData(0, 0, c.width, H);
+      const d = img.data;
+      for (const p of thin) {
+        const box = new Path2D();
+        const pts = [P(p.x, p.y, p.h), P(p.x + p.w, p.y, p.h), P(p.x + p.w, p.y, 0), P(p.x + p.w, p.y + p.d, 0),
+          P(p.x, p.y + p.d, 0), P(p.x, p.y + p.d, p.h)];
+        box.moveTo(...pts[0]);
+        for (const q of pts.slice(1)) box.lineTo(...q);
+        box.closePath();
+        const xs = pts.map((q) => q[0]);
+        const ys = pts.map((q) => q[1]);
+        for (let y = Math.max(0, Math.floor(Math.min(...ys))); y < Math.min(H, Math.ceil(Math.max(...ys))); y++) {
+          for (let x = Math.max(0, Math.floor(Math.min(...xs))); x < Math.min(c.width, Math.ceil(Math.max(...xs))); x++) {
+            if (!ctx.isPointInPath(box, x + 0.5, y + 0.5)) continue;
+            const k = (y * c.width + x) * 4;
+            const grass = d[k + 1] > d[k] + 12 && d[k + 1] > d[k + 2] + 6;
+            if (grass || Math.hypot(d[k] - ground[0], d[k + 1] - ground[1], d[k + 2] - ground[2]) < 44) d[k + 3] = 0;
+          }
+        }
+      }
+      ctx.putImageData(img, 0, 0);
+    }
     if (this.textures.exists(def.image)) this.textures.remove(def.image);
     this.textures.addCanvas(def.image, c);
   }

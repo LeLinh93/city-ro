@@ -14,6 +14,7 @@ export class Effects {
       alpha: { start: 0.7, end: 0 },
       emitting: false,
     }).setDepth(DEPTH.AIR - 10);
+    this.smoke.nightBase = 0xffffff; // darker at night (src/world/DayNight.js)
     // big white steam (cooling towers)
     this.steam = scene.add.particles(0, 0, 'fx_smoke', {
       lifespan: { min: 2600, max: 3600 },
@@ -24,6 +25,7 @@ export class Effects {
       tint: 0xffffff,
       emitting: false,
     }).setDepth(DEPTH.AIR - 10);
+    this.steam.nightBase = 0xffffff;
     this.dust = scene.add.particles(0, 0, 'fx_dust', {
       lifespan: { min: 400, max: 750 },
       speed: { min: 25, max: 80 },

@@ -52,6 +52,11 @@ const isDeco = (id) => typeof id === 'string' && id.startsWith('deco:');
 
 const DRAG_START = 12; // px a finger must move before a menu item is dragged instead of tapped
 const HOLD_MS = 350; // pressing this long before moving always picks the building up (in any direction)
+const CLOCK_HINTS = {
+  auto: 'Day and night go round by themselves.',
+  day: 'Always day.',
+  night: 'Always night.',
+};
 const CARRY_LIFT = 50; // px the carried building sits above the finger, so the finger doesn't hide it
 
 export class UI {
@@ -70,6 +75,12 @@ export class UI {
     document.getElementById('zoom-in').addEventListener('click', () => this.scene?.controls.zoomStep(1));
     document.getElementById('zoom-out').addEventListener('click', () => this.scene?.controls.zoomStep(-1));
     document.getElementById('home').addEventListener('click', () => onHome());
+    // the day/night clock: tap to switch between auto, always day and always night
+    this.clock = document.getElementById('clock');
+    this.clock.addEventListener('click', () => {
+      const night = this.scene?.dayNight;
+      if (night) this.showHint(CLOCK_HINTS[night.nextMode()]);
+    });
     this.stop = document.getElementById('stop-disaster');
     this.stop.addEventListener('click', () => {
       if (this.scene?.disasters.stop()) this.showHint('Disaster stopped. 🔧 Repair fixes what it broke.');
@@ -118,6 +129,15 @@ export class UI {
     // a tap on the ground beside a waiting building: it is built where it is if that spot is OK (green),
     // else dropped (a building being moved goes back) — see settle()
     scene.events.off('tap-off-placing');
+    scene.events.off('clock');
+    scene.events.off('weather');
+    scene.events.on('weather', (kind) => {
+      this.clock.querySelector('.clock-weather').classList.toggle('hidden', kind !== 'rain');
+      if (kind === 'rain') this.showHint('🌧️ It is raining. Fires go out by themselves in the rain.');
+    });
+    this.clock.querySelector('.clock-weather').classList.toggle('hidden', scene.weather.kind !== 'rain');
+    scene.events.on('clock', (hour, mode) => this.showClock(hour, mode));
+    this.showClock(scene.dayNight.hour, scene.dayNight.mode);
     scene.events.on('tap-off-placing', () => this.select('hand', false));
     scene.events.on('disaster', (on) => this.lock(on));
     this.bar.classList.remove('locked');
@@ -138,6 +158,16 @@ export class UI {
     document.body.classList.remove('disaster');
     this.closeMenu();
     this.place.classList.add('hidden');
+  }
+
+  showClock(hour, mode) {
+    const h = Math.floor(hour);
+    const m = Math.floor((hour - h) * 4) * 15;
+    this.clock.querySelector('.clock-time').textContent = `${h}:${String(m).padStart(2, '0')}`;
+    this.clock.querySelector('.clock-mode').textContent = { auto: 'Auto', day: '🔒 Day', night: '🔒 Night' }[mode];
+    this.clock.querySelector('.clock-hand').style.transform = `rotate(${hour * 15}deg)`;
+    const icon = hour >= 6.3 && hour < 19.5 ? '☀️' : (hour >= 4 && hour < 6.3) || (hour >= 19.5 && hour < 21.5) ? '🌅' : '🌙';
+    this.clock.querySelector('.clock-icon').textContent = icon;
   }
 
   showHint(text) {

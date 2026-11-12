@@ -1,6 +1,9 @@
+import Phaser from 'phaser';
 import { DEPTH, HW } from '../constants.js';
 import { toWorld } from '../iso.js';
 import { ruinTexture } from '../art/ruin.js';
+import { floodTexture, towerLightPoints } from '../art/floodlight.js';
+import { rand } from '../rng.js';
 
 // Which texture to use and whether to mirror it. Turning a building mirrors its picture.
 // A ruined building uses a ruined copy of its picture.
@@ -74,6 +77,14 @@ export class BuildingView {
       console.warn(`${main.key}.png should be ${place.width}px wide (it is ${srcW}px); scaling it.`);
     }
     const depths = columnDepths(b, place);
+    // night spotlights shining up the front walls, cut into the same columns as the building
+    // (not on decorations or ruins; lights: false in the theme turns them off)
+    const night = scene.dayNight;
+    const lit0 = night && !b.ruined && def.menu !== 'Decoration' && def.lights !== false;
+    const floodKey = lit0 && floodTexture(scene, main.key, def);
+    const lightsTex = floodKey && scene.textures.get(floodKey);
+    const lit = [];
+    this.lights = [];
     for (let c = 0; c < n; c++) {
       if (depths[c] === null) continue;
       const srcCol = main.flip ? n - 1 - c : c;
@@ -82,6 +93,71 @@ export class BuildingView {
       const im = scene.add.image(place.left + c * HW, place.tipY, main.key, frame)
         .setOrigin(0, 1).setFlipX(main.flip).setScale(scale).setDepth(depths[c]);
       this.parts.push(im);
+      if (lightsTex) {
+        if (!lightsTex.has(frame)) lightsTex.add(frame, 0, Math.round(srcCol * colW), 0, Math.round(colW), srcH);
+        const li = night.glowImage(im.x, im.y, floodKey, frame).setOrigin(0, 1).setFlipX(main.flip).setScale(scale)
+          .setBlendMode(Phaser.BlendModes.ADD).setDepth(depths[c] + 0.0005);
+        this.parts.push(li);
+        lit.push(li);
+      }
+    }
+    if (lit.length) {
+      const onAt = rand(0, 0.6); // every building's spotlights come on at their own time
+      for (const li of lit) this.lights.push(night.addLight(li, { onAt, max: 0.9 }));
+    }
+    // lamps: { px, py, r } in the picture's own pixels, each with a pool of light on the ground under the building
+    // blinks: small white lights twinkling along a tower, and a red one blinking on its top
+    if (night && !b.ruined && def.blinks) {
+      const top = Math.max(...depths.filter((x) => x !== null));
+      for (const pt of towerLightPoints(scene, def.image, def)) {
+        const p = this.picturePoint(pt.px, pt.py);
+        const dot = night.glowImage(p.x, p.y, 'fx_glow').setTint(pt.top ? 0xff2a1a : 0xfff4dc)
+          .setBlendMode(Phaser.BlendModes.ADD).setScale((pt.top ? 8 : 5) / 32).setDepth(top + 0.002);
+        this.parts.push(dot);
+        this.lights.push(night.addLight(dot, { onAt: 0, blink: pt.top ? true : 'twinkle' }));
+      }
+    }
+    if (night && !b.ruined && def.glows) {
+      const top = Math.max(...depths.filter((x) => x !== null));
+      for (const g of def.glows) {
+        const p = this.picturePoint(g.px, g.py);
+        const glow = night.glowImage(p.x, p.y, 'fx_glow').setTint(g.color ?? 0xffd68a).setBlendMode(Phaser.BlendModes.ADD)
+          .setScale((g.r ?? 16) / 32).setDepth(top + 0.001);
+        this.parts.push(glow);
+        this.lights.push(night.addLight(glow, { onAt: 0, max: 0.95 }));
+      }
+      const c = toWorld(b.x + b.w / 2, b.y + b.d / 2);
+      const pool = night.glowImage(c.x, c.y, 'fx_pool').setTint(0xffd68a).setBlendMode(Phaser.BlendModes.ADD)
+        .setScale((b.w + b.d) * 0.95).setDepth(DEPTH.SHADOW + 1);
+      this.parts.push(pool);
+      this.lights.push(night.addLight(pool, { onAt: 0, max: 0.45 }));
+    }
+    // yard: floodlights on poles over a flat yard: a bright lamp on each pole and a pool of light on the yard.
+    // Either every `every` squares over the whole building (docks), or at the building-local points `lamps`
+    // with their pools moved by `aim` (squares) and `size` squares wide (the airport apron).
+    if (night && !b.ruined && def.yard) {
+      const y = def.yard;
+      const top = Math.max(...depths.filter((x) => x !== null));
+      const size = y.size ?? y.every ?? 2;
+      const color = y.color ?? 0xfff0cc;
+      const lamps = y.lamps || [];
+      if (!y.lamps) {
+        for (let j = size / 2; j < def.d; j += size) for (let i = size / 2; i < def.w; i += size) lamps.push([i, j]);
+      }
+      const [ax, ay] = y.aim || [0, 0];
+      for (const [lx, ly] of lamps) {
+        const at = this.localToWorld(lx + ax, ly + ay);
+        const pole = this.localToWorld(lx, ly, y.pole ?? 44);
+        // on a flat base picture (the airport) the pool lies on the base and the lamp is sorted like a standing thing
+        const sum = b.x + b.y + lx + ly;
+        const pool = night.glowImage(at.x, at.y, 'fx_pool').setTint(color).setBlendMode(Phaser.BlendModes.ADD)
+          .setScale(size * 0.85).setDepth(def.base ? DEPTH.BASE + 1 : top + 0.0008);
+        const lamp = night.glowImage(pole.x, pole.y, 'fx_glow').setTint(color).setBlendMode(Phaser.BlendModes.ADD)
+          .setScale(10 / 32).setDepth(def.base ? sum : top + 0.001);
+        this.parts.push(pool, lamp);
+        const onAt = rand(0, 0.3);
+        this.lights.push(night.addLight(pool, { onAt, max: 0.4 }), night.addLight(lamp, { onAt, max: 1 }));
+      }
     }
 
     if (animate) {
@@ -97,7 +173,7 @@ export class BuildingView {
   hit(wx, wy, alphaAt) {
     let best = null;
     for (const im of this.parts) {
-      if (!im.active || im.depth < 0) continue;
+      if (!im.active || im.depth < 0 || im.glow) continue;
       const s = im.scaleX;
       const fw = im.frame.cutWidth;
       const fh = im.frame.cutHeight;
@@ -131,6 +207,7 @@ export class BuildingView {
   }
 
   destroy(animate) {
+    this.scene.dayNight?.forget(this.lights);
     if (!animate) {
       this.parts.forEach((p) => p.destroy());
       return;

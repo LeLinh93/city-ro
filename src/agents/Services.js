@@ -10,6 +10,8 @@ const CLIMB = 70; // px per second up or down
 const CRUISE = 150; // flying height above the ground, px
 const JET_G = 320; // gravity of the fire truck's water, px/s²
 
+const RAIN_OUT = 6000; // ms: in the rain a fire goes out by itself this long after it starts
+
 // Helicopters on the roofs of police, hospital and fire stations, and the fires the fire station puts out.
 export class Services {
   constructor(scene, world, traffic) {
@@ -343,6 +345,13 @@ export class Services {
         st.next = time + (ok ? rand(...st.b.def.fire.every) : 20000);
       }
     }
+    // in the rain every fire goes out by itself RAIN_OUT ms after it started (or after the rain started)
+    if (this.scene.weather?.raining) {
+      for (const f of [...this.fires.values()]) {
+        f.rainFrom ??= time;
+        if (time - f.rainFrom >= RAIN_OUT) this.endFire(f);
+      }
+    } else for (const f of this.fires.values()) f.rainFrom = null;
     if (this.fires.size) this.dispatch(time);
     for (const f of [...this.fires.values()]) this.stepFire(f, time, dt);
     for (const h of this.helis.values()) this.stepHeli(h, time, dt);

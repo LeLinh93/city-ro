@@ -64,6 +64,28 @@ wide 1 × 1 picture is shrunk exactly 4 ×, averaging 4 × 4 pixels into one), k
 the edges hard (no half-transparent pixels), cuts off anything below the footprint's front edges, and reduces the
 colours to 64. It warns when the picture's shape doesn't match the size in the name.
 
+### Night lights
+
+At night the two front walls of every building (not decorations) are painted with warm light, brightest at the
+bottom, while the roof stays dark. This is made in code from the building picture (`src/art/floodlight.js`), so
+nothing needs drawing. Other kinds, set with `lights` in `src/themes/city.js`:
+`'ground'` = spotlights at the foot of the walls shining up (tall landmarks, cages, stands; a tall one also
+gets rows of spotlights higher up so it is lit to the top), `'base'` = those but only lighting the bottom of it (the
+towers), `'spots'` = those plus spotlights at the top of the walls shining down, `'field'` = the whole picture
+floodlit in white (the stadiums), and `false` = none (Mount Fuji). `blinks: true` puts small white twinkling lights along a tower's body and a blinking red one
+on its top (Eiffel Tower, Tokyo Tower, Sky Tree, Shanghai Tower).
+Docks have `yard: { every: 2 }`: floodlights on poles every 2 squares over the yard, each with a pool of light.
+The airport's terminals and tower (its `parts`) get their front walls lit, and its `yard` puts floodlights at
+chosen points in front of the gates (`lamps`, with the light falling `aim` squares away). A part marked
+`thin: true` (the control tower) has the ground inside its box (the colour at `apron`, and grass) cut out of its
+standing picture, so only the tower itself stands up and gets lit.
+An open courtyard can be lit with `inside` (the Louvre): `floor: [x, y, w, d]` is the courtyard in squares,
+`lamps` are points with a pool of light `reach` squares wide on its floor, and `glow: { x, y, r }` makes a glass
+roof glow gold from inside (the pyramid). These are painted into the building's night picture, so they stay
+behind anything standing in front of it.
+Lamps are set with `glows`, e.g. the lamp post: `lamppost: { glows: [{ px: 53, py: 18 }, { px: 73, py: 24 }] }`
+(pixels of the game picture).
+
 ### Other images
 
 The converter also makes ground, road, people and vehicle files: save the big picture as
