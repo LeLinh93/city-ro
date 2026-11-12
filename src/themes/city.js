@@ -10,13 +10,14 @@ export const CITY = {
   // people  : how many people walk out per minute (multiplied by the square root of the area)
   // attract : how popular the building is as a place to walk to (0 = nobody walks there)
   // door    : false = nobody goes in or out (decorations)
+  // paint   : true = pick one and tap or drag to put them down straight away, like the Plot tool
   menus: {
     House: { icon: '🏠', people: 3, attract: 1 },
     Shop: { icon: '🏪', people: 1.5, attract: 3 },
     Service: { icon: '🏥', people: 1.5, attract: 2 },
     Factory: { icon: '🏭', people: 1.5, attract: 1 },
     Landmark: { icon: '🗼', people: 1, attract: 4 },
-    Decoration: { icon: '🌳', people: 0, attract: 0, door: false },
+    Decoration: { icon: '🌳', people: 0, attract: 0, door: false, paint: true },
     Transport: { icon: '✈️', people: 2, attract: 2 },
   },
 
@@ -42,11 +43,32 @@ export const CITY = {
   // Squares are counted from the building's top corner: x runs down-right, y runs down-left.
   // door / garage: { x, y, side } where side is ne, se, sw or nw. The default door is in the
   // middle of the front-left (sw) face.
+  //
+  // Vehicles (pictures in src/data/vehicles.js):
+  // patrol    : cars that leave the garage (or the door), drive around and come back.
+  //             count = how many at once, rest = [min, max] ms at home between trips.
+  // heli      : helicopter parked on the roof. pad = the middle of the H in the picture's own pixels;
+  //             job = 'spotlight' (shines a light on a building), 'tour' (short flight) or 'fire' (puts out fires).
+  // fire      : now and then a building within `radius` squares catches fire; the station sends its
+  //             helicopter and its truck (`vehicle`). every = [min, max] ms between fires.
+  // nearWater : can only be built touching water.   dock: the ship that sails from here.
   buildings: {
     police: {
-      garage: { x: 1, y: 1, side: 'se' }, // police cars drive in and out here
-      vehicles: 2,
+      garage: { x: 1, y: 1, side: 'se' },
+      patrol: { vehicle: 'police', count: 2, rest: [4000, 9000] },
+      heli: { vehicle: 'heli_police', pad: { px: 122, py: 32 }, job: 'spotlight', rest: [25000, 50000] },
     },
+    hospital: {
+      patrol: { vehicle: 'ambulance', count: 1, rest: [20000, 45000] },
+      heli: { vehicle: 'heli_hospital', pad: { px: 122, py: 32 }, job: 'tour', rest: [30000, 60000] },
+    },
+    firestation: {
+      garage: { x: 0, y: 1, side: 'sw' },
+      fire: { vehicle: 'firetruck', radius: 12, every: [90000, 180000] },
+      heli: { vehicle: 'heli_fire', pad: { px: 124, py: 51 }, job: 'fire' },
+    },
+    dockpassenger: { nearWater: true, dock: { ship: 'cruiseship' } },
+    dockshipment: { nearWater: true, dock: { ship: 'containership' } },
     airport: {
       door: { x: 9, y: 7, side: 'se' },
       // Parts of the picture that stand up from the ground (terminals, tower), as boxes:
@@ -61,7 +83,7 @@ export const CITY = {
       airport: {
         runway: { centerY: 2.65 },
         taxiway: { centerY: 3.25 },
-        spots: [{ x: 3.0, y: 4.9 }, { x: 5.9, y: 4.9 }, { x: 8.6, y: 4.9 }],
+        spots: [{ x: 3.0, y: 4.2 }, { x: 5.9, y: 4.2 }, { x: 8.6, y: 4.2 }], // far enough out that the terminals don't hide the noses
         touchdownX: 0.8,
         exitX: 8.8,
         takeoffStartX: 2.4,

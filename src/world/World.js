@@ -157,7 +157,25 @@ export class World {
         if (this.road[k] || this.bldg[k]) return false;
       }
     }
+    if (BUILDINGS[type].nearWater && !this.waterSides(x, y, f.w, f.d).length) return false;
     return true;
+  }
+
+  // Water squares sharing an edge with a footprint, with the side they are on: [{ i, j, side }].
+  waterSides(x, y, w, d) {
+    const out = [];
+    const add = (i, j, side) => {
+      if (this.inBounds(i, j) && this.ground[this.idx(i, j)] === GROUND.WATER) out.push({ i, j, side });
+    };
+    for (let i = x; i < x + w; i++) {
+      add(i, y - 1, 'ne');
+      add(i, y + d, 'sw');
+    }
+    for (let j = y; j < y + d; j++) {
+      add(x - 1, j, 'nw');
+      add(x + w, j, 'se');
+    }
+    return out;
   }
 
   addBuilding(type, x, y, rot, { silent = false } = {}) {

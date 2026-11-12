@@ -61,7 +61,7 @@ export function themeCatalog(themeId) {
       });
     }
     defs[id] = def;
-    if (!menus.has(menu)) menus.set(menu, { name: menu, icon: mcfg.icon || '📦', items: [] });
+    if (!menus.has(menu)) menus.set(menu, { name: menu, icon: mcfg.icon || '📦', paint: !!mcfg.paint, items: [] });
     menus.get(menu).items.push(def);
   }
   const rank = (n) => (order.includes(n) ? order.indexOf(n) : order.length);

@@ -376,3 +376,27 @@ export function genShadow(w = 200, h = 70) {
   }
   return pix;
 }
+
+// A small flame (fires) and a water drop (fire fighting).
+export function genFlame() {
+  const pix = new Pix(10, 14);
+  for (let y = 0; y < 14; y++) {
+    for (let x = 0; x < 10; x++) {
+      const dx = (x + 0.5 - 5) / 5;
+      const t = (y + 0.5) / 14; // 0 = tip, 1 = base
+      const half = Math.sin(Math.min(1, t * 1.15) * Math.PI * 0.62) * (t > 0.8 ? 1 - (t - 0.8) * 1.6 : 1);
+      if (Math.abs(dx) > half) continue;
+      const inner = Math.abs(dx) < half * 0.5 && t > 0.45;
+      pix.set(x, y, inner ? 0xfff27a : t < 0.35 ? 0xf5541c : 0xff9d2b);
+    }
+  }
+  return pix;
+}
+
+export function genDrop() {
+  const pix = new Pix(3, 4);
+  pix.rect(1, 0, 1, 1, 0xbfe8ff);
+  pix.rect(0, 1, 3, 2, 0x6cc4f2);
+  pix.rect(1, 3, 1, 1, 0x4aa8e0);
+  return pix;
+}

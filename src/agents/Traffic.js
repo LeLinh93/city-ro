@@ -1,13 +1,16 @@
 import { SPEED, LANE_OFFSET, SIDES, SIDE_LIST } from '../constants.js';
-import { toWorld, facingFor } from '../iso.js';
+import { toWorld } from '../iso.js';
 import { pick, rand } from '../rng.js';
 import { ART } from '../data/art.js';
 import { Mover } from './Mover.js';
+import { CARS } from '../data/vehicles.js';
+import { vehicleSprite, faceVehicle, hasVehicle } from './vehicleArt.js';
 
 const MAX_CARS = 30;
 
 // Cars wander the road network on the right-hand lane.
-// Police cars leave their station's garage, patrol, and drive back home.
+// Patrol cars (police, ambulance) leave their building, drive around, and come back.
+// Fire trucks are sent to a burning building, wait there, and drive back (see Services).
 export class Traffic {
   constructor(scene, world, pathfinder) {
     this.scene = scene;
@@ -16,13 +19,15 @@ export class Traffic {
     this.cars = [];
     this.stations = new Map();
     this.spawnTimer = 0;
-    this.variants = scene.registry.get('variants').car;
+    this.variants = scene.registry.get('variants').car; // code-drawn stand-ins
+    this.carIds = CARS.filter((id) => hasVehicle(scene, id));
     world.on('building-added', (b) => {
-      if (!b.def.garage) return;
+      const p = b.def.patrol;
+      if (!p) return;
       const now = scene.time.now;
       const slots = [];
-      for (let k = 0; k < (b.def.vehicles || 1); k++) slots.push({ car: null, next: now + 1500 + k * 6000 });
-      this.stations.set(b.id, { b, slots });
+      for (let k = 0; k < (p.count || 1); k++) slots.push({ car: null, next: now + 1500 + k * 6000 });
+      this.stations.set(b.id, { b, p, slots });
     });
     world.on('building-removed', (b) => {
       this.stations.delete(b.id);
@@ -47,24 +52,18 @@ export class Traffic {
     for (const st of this.stations.values()) {
       for (const slot of st.slots) {
         if (!slot.car && time > slot.next) {
-          if (!this.spawnPolice(st, slot)) slot.next = time + 3000;
+          if (!this.spawnPatrol(st, slot)) slot.next = time + 3000;
         }
       }
     }
 
     for (const c of this.cars) {
-      if (c.leaving) continue;
+      if (c.leaving || c.mode === 'wait') continue;
       if (this.blocked(c, dt)) continue;
       c.mover.step(dt);
       if (c.mover.done) {
-        if (c.kind === 'police' && c.mode === 'enter') {
-          const st = this.stations.get(c.station);
-          if (st) {
-            st.slots[c.slot].car = null;
-            st.slots[c.slot].next = time + rand(4000, 9000);
-          }
-        }
-        this.despawn(c);
+        if (c.mode === 'arrived') c.mode = 'wait'; // a fire truck at the fire: stays until called back
+        else this.despawn(c);
       }
     }
     for (const c of this.cars) this.render(c, time);
@@ -80,7 +79,7 @@ export class Traffic {
       const dy = o.mover.py - m.py;
       const along = dx * m.dir[0] + dy * m.dir[1];
       const side = Math.abs(-dx * m.dir[1] + dy * m.dir[0]);
-      if (along > 0.05 && along < 0.5 && side < 0.14) {
+      if (along > 0.05 && along < 0.62 && side < 0.14) {
         c.wait = (c.wait || 0) + dt;
         if (c.wait < 1.2) return true;
       }
@@ -89,11 +88,12 @@ export class Traffic {
     return false;
   }
 
-  makeCar(kind, key, x, y, onRoad, speed) {
-    const sprite = this.scene.add.image(0, 0, key, 0).setOrigin(ART.vehicleOrigin.x, ART.vehicleOrigin.y).setAlpha(0);
-    this.scene.tweens.add({ targets: sprite, alpha: 1, duration: 300 });
-    const tex = this.scene.textures.get(key);
-    const car = { kind, sprite, perRow: Math.max(1, Math.floor((tex.frameTotal - 1) / 2)) };
+  // id: vehicle picture (src/data/vehicles.js); fallbackKey: code-drawn stand-in if that picture is missing.
+  makeCar(kind, id, fallbackKey, x, y, onRoad, speed) {
+    const v = vehicleSprite(this.scene, id, { key: fallbackKey, origin: ART.vehicleOrigin });
+    v.im.setAlpha(0);
+    this.scene.tweens.add({ targets: v.im, alpha: 1, duration: 300 });
+    const car = { kind, v, sprite: v.im };
     car.mover = new Mover(x, y, { speed, lane: LANE_OFFSET, onRoad, onNeed: () => this.next(car) });
     this.cars.push(car);
     return car;
@@ -107,28 +107,71 @@ export class Traffic {
       const i = k % w.size;
       const j = (k / w.size) | 0;
       if (!w.roadMask(i, j)) continue;
-      const car = this.makeCar('civ', pick(this.variants), i + 0.5, j + 0.5, true, SPEED.car * rand(0.85, 1.15));
+      const id = this.carIds.length ? pick(this.carIds) : null;
+      const car = this.makeCar('civ', id, pick(this.variants), i + 0.5, j + 0.5, true, SPEED.car * rand(0.85, 1.15));
       car.cur = [i, j];
       car.heading = null;
       return;
     }
   }
 
-  spawnPolice(st, slot) {
-    const g = this.world.entrance(st.b, 'garage');
-    if (!g || !this.world.isRoad(...g.outside)) return false;
-    const car = this.makeCar('police', 'police_car', g.point.x, g.point.y, false, SPEED.police);
-    car.station = st.b.id;
-    car.slot = st.slots.indexOf(slot);
+  // Where a building's vehicles come and go: its garage, or else its door.
+  home(b) {
+    return this.world.entrance(b, b.def.garage ? 'garage' : 'door');
+  }
+
+  // A vehicle drives out of building b onto the road in front of it.
+  leave(kind, b, id, speed) {
+    const g = this.home(b);
+    if (!g || !this.world.isRoad(...g.outside)) return null;
+    const car = this.makeCar(kind, id, 'police_car', g.point.x, g.point.y, false, speed);
+    car.station = b.id;
     car.home = g;
-    car.mode = 'patrol';
-    car.steps = 0;
-    car.patrolLen = Math.floor(rand(15, 35));
     car.mover.push(g.outside[0] + 0.5, g.outside[1] + 0.5, true);
     car.cur = g.outside;
     car.heading = g.dir;
+    return car;
+  }
+
+  spawnPatrol(st, slot) {
+    const car = this.leave('service', st.b, st.p.vehicle, SPEED.police);
+    if (!car) return false;
+    car.slot = st.slots.indexOf(slot);
+    car.mode = 'patrol';
+    car.steps = 0;
+    car.patrolLen = Math.floor(rand(15, 35));
     slot.car = car;
     return true;
+  }
+
+  // Send a vehicle from building `from` to the road next to building `to`. Returns the car, or null if
+  // no road connects them. The car waits there until recall(car).
+  dispatch(from, to, id) {
+    const w = this.world;
+    const goal = new Set(); // road squares around the target
+    for (let j = to.y - 1; j <= to.y + to.d; j++) {
+      for (let i = to.x - 1; i <= to.x + to.w; i++) {
+        const edge = i === to.x - 1 || i === to.x + to.w || j === to.y - 1 || j === to.y + to.d;
+        if (edge && w.isRoad(i, j)) goal.add(w.idx(i, j));
+      }
+    }
+    const g = this.home(from);
+    if (!goal.size || !g || !w.isRoad(...g.outside)) return null;
+    const path = this.pf.roadPathTo(g.outside, (k) => goal.has(k));
+    if (!path) return null;
+    const car = this.leave('truck', from, id, SPEED.police * 1.15);
+    car.mode = 'respond';
+    car.path = path.slice(1);
+    car.steps = 0;
+    car.patrolLen = 10;
+    return car;
+  }
+
+  recall(car) {
+    if (car.leaving || car.gone) return;
+    car.mode = 'return';
+    car.path = null;
+    car.mover.done = false;
   }
 
   // Called when a car reaches the middle of a square: decide where to go next.
@@ -138,7 +181,16 @@ export class Traffic {
     if (car.mode === 'enter') return false;
     if (!w.isRoad(i, j)) return false;
 
-    if (car.kind === 'police' && car.mode === 'return') {
+    if (car.mode === 'respond') {
+      if (car.path?.length && w.isRoad(...car.path[0])) {
+        this.go(car, car.path.shift());
+        return true;
+      }
+      car.mode = 'arrived';
+      return false;
+    }
+
+    if (car.kind !== 'civ' && car.mode === 'return') {
       const home = car.home.outside;
       if (i === home[0] && j === home[1]) {
         car.mode = 'enter';
@@ -171,7 +223,7 @@ export class Traffic {
       nxt = straight && Math.random() < 0.55 ? straight : pick(options);
     } else nxt = back;
     if (!nxt) return false;
-    if (car.kind === 'police' && ++car.steps > car.patrolLen) car.mode = 'return';
+    if (car.kind !== 'civ' && ++car.steps > car.patrolLen) car.mode = 'return';
     this.go(car, nxt);
     return true;
   }
@@ -186,21 +238,17 @@ export class Traffic {
   render(car, time) {
     const m = car.mover;
     const pos = toWorld(m.px, m.py);
-    const f = facingFor(m.dir[0], m.dir[1]);
-    const frame = f.row * car.perRow + (Math.floor(time / 220) % car.perRow);
-    car.sprite.setPosition(Math.round(pos.x), Math.round(pos.y)).setDepth(m.px + m.py + 0.05).setFlipX(f.flip);
-    if (car.sprite.frame.name !== frame) car.sprite.setFrame(frame);
+    faceVehicle(car.v, m.dir[0], m.dir[1], time);
+    car.sprite.setPosition(Math.round(pos.x), Math.round(pos.y)).setDepth(m.px + m.py + 0.05);
   }
 
   despawn(c) {
     if (c.leaving) return;
     c.leaving = true;
-    if (c.kind === 'police') {
-      const st = this.stations.get(c.station);
-      if (st && st.slots[c.slot]?.car === c) {
-        st.slots[c.slot].car = null;
-        st.slots[c.slot].next = this.scene.time.now + rand(4000, 9000);
-      }
+    const st = c.slot !== undefined && this.stations.get(c.station);
+    if (st && st.slots[c.slot]?.car === c) {
+      st.slots[c.slot].car = null;
+      st.slots[c.slot].next = this.scene.time.now + rand(...(st.p.rest || [4000, 9000]));
     }
     this.scene.tweens.add({
       targets: c.sprite, alpha: 0, duration: 300,

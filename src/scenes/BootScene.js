@@ -1,9 +1,10 @@
 import Phaser from 'phaser';
 import { ART, roadTileName } from '../data/art.js';
 import { THEMES, themeCatalog } from '../themes/catalog.js';
+import { VEHICLES } from '../data/vehicles.js';
 import {
   genGround, genEdge, genShore, genRoadCenter, genRoadArm,
-  genPerson, genCar, genPlane, genPuff, genDust, genShadow,
+  genPerson, genCar, genPlane, genPuff, genDust, genShadow, genFlame, genDrop,
 } from '../art/placeholders.js';
 
 // Every PNG in the project's assets/ folder, found at build time (and live while `npm run dev` runs).
@@ -67,6 +68,8 @@ export class BootScene extends Phaser.Scene {
     for (let i = 0; i < ART.personVariants; i++) sheet(`person_${i}`, `${BASE}people/person_${i}.png`, ART.person);
     for (let i = 0; i < ART.carVariants; i++) sheet(`car_${i}`, `${BASE}vehicles/car_${i}.png`, ART.car);
     sheet('police_car', `${BASE}vehicles/police_car.png`, ART.car);
+    // Vehicles cut from the sheets by `npm run art` (4 views side by side, see src/data/vehicles.js).
+    for (const id of Object.keys(VEHICLES)) L.image(`veh:${id}`, `${BASE}vehicles/${id}.png`);
     for (let i = 0; i < ART.planeVariants; i++) sheet(`plane_${i}`, `${BASE}vehicles/plane_${i}.png`, ART.plane);
     L.image('fx_smoke', `${BASE}fx/smoke.png`);
     L.image('fx_dust', `${BASE}fx/dust.png`);
@@ -118,6 +121,8 @@ export class BootScene extends Phaser.Scene {
     if (!has('fx_smoke')) addPix(this, 'fx_smoke', genPuff());
     if (!has('fx_dust')) addPix(this, 'fx_dust', genDust());
     addPix(this, 'fx_shadow', genShadow());
+    if (!has('fx_flame')) addPix(this, 'fx_flame', genFlame());
+    if (!has('fx_drop')) addPix(this, 'fx_drop', genDrop());
 
     for (const id of Object.keys(THEMES)) {
       for (const def of Object.values(themeCatalog(id).defs)) if (def.parts) this.cutParts(def);
@@ -126,6 +131,14 @@ export class BootScene extends Phaser.Scene {
     // Full road tiles the player provided (optional).
     const roadTiles = [];
     for (let m = 0; m < 16; m++) roadTiles[m] = has(roadTileName(m)) ? roadTileName(m) : null;
+
+    for (const id of Object.keys(VEHICLES)) {
+      if (!has(`veh:${id}`)) continue;
+      const tex = this.textures.get(`veh:${id}`);
+      const src = tex.source[0];
+      const fw = Math.floor(src.width / 4);
+      for (let k = 0; k < 4; k++) tex.add(k, 0, k * fw, 0, fw, src.height);
+    }
 
     this.registry.set('variants', variants);
     this.registry.set('roadTiles', roadTiles);

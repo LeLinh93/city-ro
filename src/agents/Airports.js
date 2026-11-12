@@ -1,7 +1,8 @@
 import { DEPTH } from '../constants.js';
-import { toWorld, facingFor } from '../iso.js';
+import { toWorld } from '../iso.js';
 import { pick, rand } from '../rng.js';
 import { ART } from '../data/art.js';
+import { vehicleSprite, faceVehicle, vehicleShadow, placeShadow } from './vehicleArt.js';
 
 // Planes land, taxi to a parking spot, wait, taxi back and take off.
 // Only one plane moves at a time per airport, so they never collide.
@@ -43,11 +44,9 @@ export class Airports {
   }
 
   makePlane(port, x, y, alt) {
-    const key = pick(this.variants);
-    const tex = this.scene.textures.get(key);
-    const shadow = this.scene.add.image(0, 0, 'fx_shadow').setDepth(DEPTH.SHADOW).setAlpha(0);
-    const sprite = this.scene.add.image(0, 0, key, 0).setOrigin(ART.planeOrigin.x, ART.planeOrigin.y);
-    return { port, sprite, shadow, x, y, alt, legs: [], perRow: Math.max(1, Math.floor((tex.frameTotal - 1) / 2)), dir: [1, 0] };
+    const v = vehicleSprite(this.scene, 'airplane', { key: pick(this.variants), origin: ART.planeOrigin });
+    const shadow = vehicleShadow(this.scene, v);
+    return { port, v, sprite: v.im, shadow, x, y, alt, legs: [], dir: [1, 0] };
   }
 
   land(port, spot) {
@@ -134,14 +133,12 @@ export class Airports {
     const dx = b.rot ? p.dir[1] : p.dir[0];
     const dy = b.rot ? p.dir[0] : p.dir[1];
     const pos = toWorld(mx, my);
-    const f = facingFor(dx, dy);
-    const frame = f.row * p.perRow + (Math.floor(time / 400) % p.perRow);
-    p.sprite.setPosition(Math.round(pos.x), Math.round(pos.y - p.alt)).setFlipX(f.flip);
-    if (p.sprite.frame.name !== frame) p.sprite.setFrame(frame);
+    faceVehicle(p.v, dx, dy, time, 400);
+    p.sprite.setPosition(Math.round(pos.x), Math.round(pos.y - p.alt));
     p.sprite.setDepth(p.alt > 4 ? DEPTH.AIR + p.alt : mx + my + 1.2);
+    // the plane's outline on the ground, a little to the lower right; smaller and fainter as it climbs
     const lift = Math.min(1, p.alt / 350);
-    p.shadow.setPosition(Math.round(pos.x), Math.round(pos.y)).setScale(1 - lift * 0.4, (1 - lift * 0.4) * 0.9)
-      .setAlpha(0.28 * (1 - lift * 0.7) * p.sprite.alpha);
+    placeShadow(p.shadow, p.v, pos.x + 8 + p.alt * 0.15, pos.y + 6, 0.2 * (1 - lift * 0.7) * p.sprite.alpha, DEPTH.SHADOW, 1 - lift * 0.3);
     if (p.state === 'departing' && p.alt > 200 && !p.fading) {
       p.fading = true;
       this.scene.tweens.add({ targets: p.sprite, alpha: 0, duration: 1500 });

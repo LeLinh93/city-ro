@@ -5,9 +5,11 @@ const HINTS = {
   hand: 'Drag to move around. Tap a building to move it. Pinch with two fingers to zoom.',
   road: 'Drag your finger to draw roads.',
   bulldoze: 'Tap or drag to remove things.',
-  menu: 'Tap a building, or drag it onto the map.',
+  menu: 'Tap a building, or drag it up onto the map.',
   plot: 'Pick a ground to paint with.',
   paint: "Tap or drag to paint the ground. Water can't go under roads or buildings.",
+  painter: 'Pick one, then tap or drag on the map to put them down.',
+  deco: 'Tap or drag on the map to put them down. Tap the menu button again when you are done.',
   placing: 'Drag the building to move it, or drag beside it to look around. ✔ builds it, 🔄 turns it, ✖ cancels.',
 };
 
@@ -19,6 +21,7 @@ const PAINTS = [
   { paint: 'pavement', name: 'Pavement', texture: 'pavement_0' },
 ];
 const isPaint = (id) => typeof id === 'string' && id.startsWith('paint:');
+const isDeco = (id) => typeof id === 'string' && id.startsWith('deco:');
 
 const DRAG_START = 12; // px a finger must move before a menu item is dragged instead of tapped
 
@@ -32,6 +35,7 @@ export class UI {
     this.ok = document.getElementById('place-ok');
     this.buttons = new Map();
     this.openMenu = null;
+    this.painter = false; // the open menu paints (Plot, Decoration) instead of placing one building
     this.drag = null;
 
     document.getElementById('zoom-in').addEventListener('click', () => this.scene?.controls.zoomStep(1));
@@ -40,12 +44,17 @@ export class UI {
     this.ok.addEventListener('click', () => {
       if (this.scene?.confirmPlacing()) this.select('hand', false);
     });
-    document.getElementById('place-no').addEventListener('click', () => this.select('hand'));
+    document.getElementById('place-no').addEventListener('click', () => {
+      this.scene?.cancelPlacing();
+      this.select('hand');
+    });
     document.getElementById('place-flip').addEventListener('click', () => this.scene?.flipPlacing());
 
-    // A finger on the building menu: swipe sideways to scroll, drag up to carry a building out, tap to place it.
+    // A finger on a menu: swipe sideways to scroll, drag up to carry a building out, tap to pick.
     this.sub.addEventListener('pointerdown', (e) => {
       e.preventDefault();
+      // let the finger's events go to whatever is under it (the map, once it leaves the menu)
+      if (e.target.hasPointerCapture?.(e.pointerId)) e.target.releasePointerCapture(e.pointerId);
       const def = e.target.closest?.('.item')?.def || null;
       this.drag = { def, x0: e.clientX, y0: e.clientY, id: e.pointerId, started: false, scroll: null };
     });
@@ -68,6 +77,7 @@ export class UI {
     this.scene = scene;
     scene.events.off('picked-up'); // the scene object is reused for every city
     scene.events.on('picked-up', (type) => {
+      this.closeMenu();
       this.highlight(type);
       this.showHint(HINTS.placing);
     });
@@ -102,40 +112,68 @@ export class UI {
     this.bar.textContent = '';
     this.buttons.clear();
     this.button('hand', '✋', 'Move', () => this.select('hand'));
-    this.button('road', '🛣️', 'Road', () => this.select('road'));
+    this.button('road', '🛣️', 'Road', () => this.toggleTool('road'));
     const plot = PAINTS.map((p) => ({ ...p, url: this.scene.textures.getBase64(p.texture, 0) }));
-    this.button('plot', '🖌️', 'Plot', () => this.toggleMenu('plot', plot, HINTS.plot));
-    for (const m of MENUS) this.button(`menu:${m.name}`, m.icon, m.name, () => this.toggleMenu(`menu:${m.name}`, m.items, HINTS.menu));
-    this.button('bulldoze', '🚜', 'Remove', () => this.select('bulldoze'));
+    this.button('plot', '🖌️', 'Plot', () => this.toggleMenu('plot', plot, true, HINTS.plot));
+    for (const m of MENUS) {
+      this.button(`menu:${m.name}`, m.icon, m.name,
+        () => this.toggleMenu(`menu:${m.name}`, m.items, m.paint, m.paint ? HINTS.painter : HINTS.menu));
+    }
+    this.button('bulldoze', '🚜', 'Remove', () => this.toggleTool('bulldoze'));
   }
 
-  // Pick a tool (hand, road, bulldoze, 'paint:<ground>' or a building id).
+  // A building that waits for ✔ / ✖ when another button is pressed: built if its spot is fine, else dropped
+  // (a building that was being moved goes back where it was).
+  settle() {
+    const s = this.scene;
+    if (s?.pending && !s.confirmPlacing(true)) s.cancelPlacing();
+  }
+
+  // Road and Remove: pressing the button that is already on goes back to Move.
+  toggleTool(id) {
+    this.select(this.scene?.tool === id ? 'hand' : id);
+  }
+
+  // Pick a tool (hand, road, bulldoze, or a building id) and close any menu.
   select(id, hint = true) {
+    this.settle();
     this.closeMenu();
     this.scene?.setTool(id);
     this.highlight(id);
-    const text = HINTS[id] || (isPaint(id) && HINTS.paint);
-    if (hint && text) this.showHint(text);
+    if (hint && HINTS[id]) this.showHint(HINTS[id]);
     else this.hint.classList.remove('show');
   }
 
-  highlight(id) {
-    const def = BUILDINGS[id];
-    const key = def ? `menu:${def.menu}` : isPaint(id) ? 'plot' : id;
-    for (const [k, b] of this.buttons) b.classList.toggle('active', k === key || k === this.openMenu);
+  // Which build bar button a tool belongs to.
+  buttonFor(id) {
+    if (isPaint(id)) return 'plot';
+    const def = BUILDINGS[isDeco(id) ? id.slice(5) : id];
+    return def ? `menu:${def.menu}` : id;
   }
 
-  // ---------- building and ground menus ----------
+  highlight(id) {
+    const key = this.buttonFor(id);
+    for (const [k, b] of this.buttons) b.classList.toggle('active', k === key || k === this.openMenu);
+    for (const item of this.sub.children) {
+      const d = item.def;
+      item.classList.toggle('active', !!d && (id === `paint:${d.paint}` || id === `deco:${d.id}`));
+    }
+  }
+
+  // ---------- menus ----------
 
   // items: building defs, or ground paints ({ paint, name, url }).
-  toggleMenu(key, items, hint) {
+  // painter: picking an item starts painting with it and the menu stays open; otherwise it places one building.
+  toggleMenu(key, items, painter, hint) {
     if (this.openMenu === key) {
-      this.closeMenu();
-      this.highlight(this.scene?.tool);
+      this.select('hand'); // the open menu's button again: close it and go back to Move
       return;
     }
-    this.scene?.cancelMove(); // a building that was being moved goes back where it was
+    this.settle();
+    const tool = this.scene?.tool;
+    if (BUILDINGS[tool] || this.buttonFor(tool) !== key) this.scene?.setTool('hand'); // keep painting in its own menu
     this.openMenu = key;
+    this.painter = !!painter;
     this.sub.textContent = '';
     for (const def of items) {
       const item = document.createElement('button');
@@ -150,12 +188,11 @@ export class UI {
       const size = document.createElement('span');
       size.className = 'size';
       size.textContent = def.paint ? '' : `${def.w}×${def.d}`;
-      if (def.paint && this.scene?.tool === `paint:${def.paint}`) item.classList.add('active');
       item.append(pic, name, size);
       item.def = def;
       this.sub.appendChild(item);
     }
-    this.sub.classList.remove('hidden');
+    this.sub.classList.remove('hidden', 'carrying');
     this.sub.scrollLeft = 0;
     this.highlight(this.scene?.tool);
     this.showHint(hint);
@@ -163,11 +200,29 @@ export class UI {
 
   closeMenu() {
     this.openMenu = null;
+    this.painter = false;
     this.sub.classList.add('hidden');
+    this.sub.classList.remove('carrying');
   }
 
-  // A finger that starts on the building menu: a tap places the building in the middle of the screen,
-  // a sideways swipe scrolls the menu, and a drag upwards carries the building onto the map.
+  // Tapped a menu item.
+  pick(def) {
+    if (def.paint || this.painter) {
+      const id = def.paint ? `paint:${def.paint}` : `deco:${def.id}`;
+      this.scene.setTool(id);
+      this.highlight(id);
+      this.showHint(def.paint ? HINTS.paint : HINTS.deco);
+      return;
+    }
+    this.settle();
+    this.closeMenu();
+    this.scene.startPlacing(def.id);
+    this.highlight(def.id);
+    this.showHint(HINTS.placing);
+  }
+
+  // A finger that starts on a menu: a tap picks the item, a sideways swipe scrolls the menu,
+  // and (in a building menu) a drag upwards carries the building onto the map.
   dragMove(e) {
     const d = this.drag;
     if (!d || e.pointerId !== d.id || !this.scene) return;
@@ -179,13 +234,15 @@ export class UI {
       const dx = e.clientX - d.x0;
       const dy = e.clientY - d.y0;
       if (Math.hypot(dx, dy) < DRAG_START) return;
-      if (!d.def || d.def.paint || Math.abs(dx) > Math.abs(dy)) {
+      const up = dy < 0 && -dy >= Math.abs(dx) * 0.7;
+      if (!d.def || d.def.paint || this.painter || !up) {
         d.scroll = this.sub.scrollLeft + dx; // so the menu doesn't jump by the first few pixels
         this.sub.scrollLeft = d.scroll - dx;
         return;
       }
       d.started = true;
-      this.closeMenu();
+      this.settle();
+      this.sub.classList.add('carrying'); // hidden for real when the finger lifts
       this.highlight(d.def.id);
     }
     this.scene.startPlacing(d.def.id, this.scene.squareAtClient(e.clientX, e.clientY));
@@ -195,18 +252,16 @@ export class UI {
     const d = this.drag;
     if (!d || e.pointerId !== d.id) return;
     this.drag = null;
-    if (!this.scene || cancelled || d.scroll !== null || !d.def) return;
-    if (!d.started) {
-      if (!e.target.closest || !e.target.closest('#submenu')) return; // finger slid off the menu
-      if (d.def.paint) {
-        this.select(`paint:${d.def.paint}`);
-        return;
-      }
+    if (!this.scene || d.scroll !== null || !d.def) return;
+    if (d.started) {
+      // the building stays where the finger left it, waiting for ✔ / ✖
       this.closeMenu();
-      this.scene.startPlacing(d.def.id);
+      this.highlight(d.def.id);
+      this.showHint(HINTS.placing);
+      return;
     }
-    this.highlight(d.def.id);
-    this.showHint(HINTS.placing);
+    if (cancelled || !e.target.closest || !e.target.closest('#submenu')) return; // finger slid off the menu
+    this.pick(d.def);
   }
 
   // ---------- ✔ ✖ 🔄 above the building being placed ----------

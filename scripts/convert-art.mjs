@@ -12,7 +12,9 @@
 //     The background must already be transparent; the canvas is kept as it is (no trim).
 //  2. By name: art-source/ground/grass_0.webp -> assets/ground/grass_0.png
 //     (same folder + name as the game file; any of .png .webp .jpg).
-//  3. A job list in art-source/convert.json, e.g. to cut several tiles out of one sheet:
+//  3. Vehicle sheets listed in src/data/vehicles.js: art-source/vehicles/<sheet> -> assets/vehicles/<id>.png
+//     (4 views side by side, cut apart at the empty space between them, shrunk and centred on the point under the vehicle).
+//  4. A job list in art-source/convert.json, e.g. to cut several tiles out of one sheet:
 //     { "jobs": [ { "from": "tiles.webp", "crop": [0, 0, 512, 256], "to": "ground/grass_0.png" } ] }
 //
 // Steps: remove plain background -> trim -> area-average shrink to the exact size
@@ -26,6 +28,7 @@
 import sharp from 'sharp';
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, extname, join, relative } from 'node:path';
+import { VEHICLES } from '../src/data/vehicles.js';
 
 const EXTS = new Set(['.png', '.webp', '.jpg', '.jpeg']);
 
@@ -363,6 +366,15 @@ function collectJobs() {
       else if (EXTS.has(extname(f).toLowerCase())) {
         const rel = relative(SRC, full).replace(/\\/g, '/');
         if (used.has(rel) || !rel.includes('/')) continue; // sheets used by jobs, or loose files in the root
+        const veh = Object.entries(VEHICLES).find(([, v]) => `vehicles/${v.sheet}` === rel);
+        if (veh) {
+          jobs.push({ from: rel, to: `vehicles/${veh[0]}.png`, vehicle: veh[0] });
+          continue;
+        }
+        if (rel.startsWith('vehicles/') && rel.includes('-sheet')) {
+          console.warn(`  ! skipped ${rel}: add it to src/data/vehicles.js to use it`);
+          continue;
+        }
         if (/^building-/i.test(rel) && !THEME_FILE.test(rel)) {
           console.warn(`  ! skipped ${rel}: put it in a menu folder and name it <name>-<W>x<D>, e.g. House/house-1x1.png`);
           continue;
@@ -375,7 +387,69 @@ function collectJobs() {
   return jobs.filter((j) => !filters.length || filters.some((f) => j.to.includes(f)));
 }
 
+// The 4 views of a sheet, as [x0, x1) column ranges: cut at the empty columns between them,
+// or into 4 equal cells if the views touch.
+function splitViews(data, w, h, label) {
+  const used = new Uint8Array(w);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (data[(y * w + x) * 4 + 3] > 32) used[x] = 1;
+  const runs = [];
+  for (let x = 0; x < w; x++) {
+    if (!used[x]) continue;
+    if (runs.length && runs[runs.length - 1][1] === x) runs[runs.length - 1][1] = x + 1;
+    else runs.push([x, x + 1]);
+  }
+  // join the pieces of one view (e.g. a wing tip with a gap) until 4 are left: smallest gaps first
+  while (runs.length > 4) {
+    let k = 0;
+    for (let n = 1; n < runs.length - 1; n++) if (runs[n + 1][0] - runs[n][1] < runs[k + 1][0] - runs[k][1]) k = n;
+    runs.splice(k, 2, [runs[k][0], runs[k + 1][1]]);
+  }
+  if (runs.length === 4) return runs;
+  console.warn(`  ! ${label}: the 4 views touch each other; cutting it into 4 equal parts instead`);
+  const cw = Math.floor(w / 4);
+  return [0, 1, 2, 3].map((c) => [c * cw, (c + 1) * cw]);
+}
+
+// A vehicle sheet: 4 views -> 4 equal frames with the ground point in the middle of each.
+async function runVehicle(job) {
+  const v = VEHICLES[job.vehicle];
+  const { data, info } = await sharp(join(SRC, job.from)).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const cells = splitViews(data, info.width, info.height, job.from).map(([x0, x1]) => {
+    const cw = x1 - x0;
+    const cell = img(cw, info.height);
+    for (let y = 0; y < info.height; y++) {
+      cell.d.set(data.subarray((y * info.width + x0) * 4, (y * info.width + x1) * 4), y * cw * 4);
+    }
+    return trim(cell);
+  });
+  const f = v.width / Math.max(...cells.map((c) => c.w));
+  const views = cells.map((c, k) => {
+    const p = boxResize(c, Math.max(1, Math.round(c.w * f)), Math.max(1, Math.round(c.h * f)));
+    hardAlpha(p, 0.5);
+    if (v.anchor) return { p, gx: v.anchor[k][0] * p.w, gy: v.anchor[k][1] * p.h };
+    const gx = p.w / 2;
+    const gy = v.ground === 'center' ? p.h / 2 : p.h - (v.ground ?? 0.25) * p.w;
+    return { p, gx, gy };
+  });
+  // half the frame size: enough room on every side of the ground point for every view
+  const half = (a, b) => Math.ceil(Math.max(...views.map((o) => Math.max(a(o), b(o))))) + 1;
+  const hw = half((o) => o.gx, (o) => o.p.w - o.gx);
+  const hh = half((o) => o.gy, (o) => o.p.h - o.gy);
+  const out = img(hw * 8, hh * 2);
+  views.forEach(({ p, gx, gy }, k) => {
+    const ox = k * hw * 2 + Math.round(hw - gx);
+    const oy = Math.round(hh - gy);
+    for (let y = 0; y < p.h; y++) out.d.set(p.d.subarray(y * p.w * 4, (y + 1) * p.w * 4), ((y + oy) * out.w + ox) * 4);
+  });
+  reduceColors(out, job.colors ?? 64);
+  const dest = join(OUT, job.to);
+  mkdirSync(dirname(dest), { recursive: true });
+  await sharp(Buffer.from(out.d.buffer), { raw: { width: out.w, height: out.h, channels: 4 } }).png({ compressionLevel: 9 }).toFile(dest);
+  console.log(`${job.from} -> ${dest}  4 frames of ${hw * 2}x${hh * 2}`);
+}
+
 async function run(job) {
+  if (job.vehicle) return runVehicle(job);
   const t = targetFor(job.to, job);
   let pipe = sharp(join(SRC, job.from));
   if (job.crop) {
@@ -427,7 +501,8 @@ const mtime = (f) => (existsSync(f) ? statSync(f).mtimeMs : 0);
 const cfgTime = mtime(join(SRC, 'convert.json'));
 function upToDate(job) {
   const out = mtime(join(OUT, job.to));
-  return out > 0 && out >= mtime(join(SRC, job.from)) && (!job.listed || out >= cfgTime);
+  return out > 0 && out >= mtime(join(SRC, job.from)) && (!job.listed || out >= cfgTime)
+    && (!job.vehicle || out >= mtime('src/data/vehicles.js')); // a changed vehicle size redoes the vehicles
 }
 
 const found = collectJobs();

@@ -298,6 +298,11 @@ body.in-menu #hud {
   box-shadow: var(--shadow);
 }
 
+/* while a building is carried out of the menu: invisible but still there, so the touch isn't cancelled */
+#submenu.carrying {
+  opacity: 0;
+}
+
 #submenu::-webkit-scrollbar {
   display: none;
 }

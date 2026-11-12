@@ -9,11 +9,15 @@ import { Pathfinder } from '../agents/Pathfinder.js';
 import { People } from '../agents/People.js';
 import { Traffic } from '../agents/Traffic.js';
 import { Airports } from '../agents/Airports.js';
+import { Ships } from '../agents/Ships.js';
+import { Services } from '../agents/Services.js';
 import { Controls } from '../input/Controls.js';
 import { loadCity, saveCity } from '../saves.js';
 import { GROUND } from '../constants.js';
 
 // Ground number for a paint tool id like 'paint:water', or null for other tools.
+// Building id for a decoration tool like 'deco:tree1', or null for other tools.
+const decoType = (tool) => (typeof tool === 'string' && tool.startsWith('deco:') && BUILDINGS[tool.slice(5)] ? tool.slice(5) : null);
 const paintGround = (tool) => (typeof tool === 'string' && tool.startsWith('paint:') ? GROUND[tool.slice(6).toUpperCase()] ?? null : null);
 
 // One city. Started with { city } (an entry from saves.js) and stopped when going back to the menu.
@@ -42,6 +46,8 @@ export class GameScene extends Phaser.Scene {
     this.fx = new Effects(this);
     this.traffic = new Traffic(this, world, this.pf);
     this.airports = new Airports(this, world);
+    this.ships = new Ships(this, world);
+    this.services = new Services(this, world, this.traffic);
     this.people = new People(this, world, this.pf);
     this.ghost = new Ghost(this);
 
@@ -86,6 +92,8 @@ export class GameScene extends Phaser.Scene {
     this.people.update(time, dt);
     this.traffic.update(time, dt);
     this.airports.update(time, dt);
+    this.ships.update(time, dt);
+    this.services.update(time, dt);
   }
 
   // ---------- tools ----------
@@ -106,6 +114,9 @@ export class GameScene extends Phaser.Scene {
     } else if (paintGround(this.tool) !== null) {
       action.painted = [];
       this.paint(sq, action);
+    } else if (decoType(this.tool)) {
+      action.placed = [];
+      this.decorate(sq, action);
     } else if (BUILDINGS[this.tool]) {
       this.grabPending(sq, action);
     }
@@ -119,6 +130,8 @@ export class GameScene extends Phaser.Scene {
       this.ghost.showSquares([sq], false);
     } else if (action.painted) {
       this.paint(sq, action);
+    } else if (action.placed) {
+      this.decorate(sq, action);
     } else if (BUILDINGS[this.tool] && action.grab) {
       this.movePending(sq[0] - action.grab[0], sq[1] - action.grab[1]);
     }
@@ -135,6 +148,9 @@ export class GameScene extends Phaser.Scene {
     if (young && action.painted) {
       for (const [i, j, g] of action.painted.reverse()) this.world.paintGround(i, j, g);
     }
+    if (young && action.placed) {
+      for (const id of action.placed) this.world.removeBuilding(id, { silent: true });
+    }
     if (action.from && this.pending) this.movePending(...action.from);
     else if (!this.pending) this.ghost.hide();
   }
@@ -145,7 +161,26 @@ export class GameScene extends Phaser.Scene {
     if (this.tool === 'road') this.ghost.showSquares([sq], this.world.canPlaceRoad(...sq));
     else if (this.tool === 'bulldoze') this.ghost.showSquares([sq], false);
     else if (paintGround(this.tool) !== null) this.ghost.showSquares([sq], this.world.canPaint(...sq, paintGround(this.tool)));
-    else this.ghost.hide();
+    else if (decoType(this.tool)) {
+      const type = decoType(this.tool);
+      const a = this.world.anchorFor(type, 0, ...sq);
+      const f = this.world.footprint(type, 0);
+      this.ghost.show(type, BUILDINGS[type], a.x, a.y, 0, f.w, f.d, this.world.canPlaceBuilding(type, a.x, a.y, 0));
+    } else this.ghost.hide();
+  }
+
+  // Decoration tool ('deco:tree1', ...): put one down on the square, straight away, wherever it fits.
+  // Square ones are mirrored at random so rows of trees don't look copied.
+  decorate(sq, action) {
+    const type = decoType(this.tool);
+    const def = BUILDINGS[type];
+    const rot = def.w === def.d && Math.random() < 0.5 ? 1 : 0;
+    const a = this.world.anchorFor(type, rot, ...sq);
+    const b = this.world.addBuilding(type, a.x, a.y, rot);
+    if (b) action.placed.push(b.id);
+    const f = this.world.footprint(type, rot);
+    this.ghost.hide();
+    this.ghost.drawOutline(a.x, a.y, f.w, f.d, !!b || this.world.buildingAt(...sq)?.type === type);
   }
 
   // Paint tool ('paint:water', 'paint:sand', ...): change the ground of one square.
@@ -232,11 +267,12 @@ export class GameScene extends Phaser.Scene {
     this.movePending(a.x, a.y);
   }
 
-  confirmPlacing() {
+  // quiet: no shake when the spot is blocked (used when another button interrupts placing)
+  confirmPlacing(quiet = false) {
     const p = this.pending;
     if (!p) return false;
     if (!p.ok) {
-      this.cameras.main.shake(120, 0.002);
+      if (!quiet) this.cameras.main.shake(120, 0.002);
       return false;
     }
     this.world.addBuilding(p.type, p.x, p.y, this.rot);

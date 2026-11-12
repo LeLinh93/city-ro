@@ -96,18 +96,24 @@ export class Pathfinder {
   }
 
   roadPath(start, goal, maxNodes = 12000) {
+    if (!this.w.isRoad(...goal)) return null;
+    const gk = goal[1] * this.w.size + goal[0];
+    return this.roadPathTo(start, (k) => k === gk, maxNodes);
+  }
+
+  // Shortest road path from start to the nearest road square k where isGoal(k) is true.
+  roadPathTo(start, isGoal, maxNodes = 12000) {
     const w = this.w;
     const N = w.size;
-    if (!w.isRoad(...start) || !w.isRoad(...goal)) return null;
+    if (!w.isRoad(...start)) return null;
     const s = this.stamp = (this.stamp + 1) >>> 0;
     const sk = start[1] * N + start[0];
-    const gk = goal[1] * N + goal[0];
     const queue = [sk];
     this.seen[sk] = s;
     this.came[sk] = -1;
     for (let q = 0; q < queue.length && q < maxNodes; q++) {
       const k = queue[q];
-      if (k === gk) return this.trace(gk);
+      if (isGoal(k)) return this.trace(k);
       const i = k % N;
       const j = (k / N) | 0;
       for (const [dx, dy] of DIRS) {

@@ -146,16 +146,28 @@ Any full tile you provide wins over the kit for that shape.
 - The game mirrors these for the other two directions.
 - Feet touch the bottom row of the frame, centred. A person is about 24–28 px tall.
 
-## Vehicles (`assets/vehicles/`)
+## Vehicles (`art-source/vehicles/`)
 
-Frames across are animation frames, and 2 rows are the facings (row 1 down-right, row 2 up-right). The
-point under the middle of the vehicle sits at **75 % down, centred** in each frame.
+Draw each vehicle as one sheet: **4 views side by side with some empty space between them** on a transparent background, facing
+(left to right) **down-left, down-right, up-right, up-left**. Any size; the views are cut out and shrunk.
 
-| File | Frame | Sheet | Notes |
-|---|---|---|---|
-| `car_0.png` … `car_3.png` | 64 × 48 | 64 × 96 | 1 frame per row (or more for animation). |
-| `police_car.png` | 64 × 48 | 128 × 96 | 2 frames per row: light bar red/blue, then blue/red. |
-| `plane_0.png`, `plane_1.png` | 384 × 256 | 384 × 512 | Ground point at (192, 192). The game draws the shadow. |
+1. Save it in `art-source/vehicles/`, e.g. `bus-sheet.png`.
+2. Add a line for it in `src/data/vehicles.js` with its game width (one square is 128 px wide), e.g.
+   `bus: { sheet: 'bus-sheet.png', width: 80 }`.
+3. Run `npm run art`. It writes `assets/vehicles/bus.png`.
+
+Changing a width in `src/data/vehicles.js` and running `npm run art` again re-makes the vehicles.
+
+| Sheet | Used for |
+|---|---|
+| `car-sheet-blue/green/red/white/yellow.png` | Traffic (a random colour for each car). |
+| `police-sheet.png`, `ambulance-sheet.png` | Patrols from the police station and the hospital. |
+| `firetruck-sheet.png` | Drives to fires from the fire station. |
+| `helicopter-sheet-police/fire/hospital.png` | Helicopters on those roofs. |
+| `airplane-sheet.png` | Airport planes. |
+| `containership-sheet.png`, `cruiseship-sheet.png` | Ships of the container dock and the passenger dock. |
+
+Without these files the game falls back to simple code-drawn cars and planes.
 
 ## Effects (`assets/fx/`)
 

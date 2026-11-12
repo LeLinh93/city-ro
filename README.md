@@ -33,15 +33,20 @@ In a city, 🏠 (top right) saves and goes back to the menu.
 | Button | What it does |
 |---|---|
 | ✋ Move | Drag to look around. Two fingers pinch to zoom (works with every tool). |
-| 🛣️ Road | Drag to draw roads. They go straight along the grid; move sideways to turn a corner. |
+| 🛣️ Road | Drag to draw roads. They go straight along the grid; move sideways to turn a corner. Tap Road again to go back to Move. |
 | 🖌️ Plot | Pick grass, sand, water or pavement, then tap or drag to paint the ground. Water can't go under roads or buildings. |
-| 🏠 🏪 🏥 🗼 🌳 ✈️ … | Opens that group's buildings in one row (swipe sideways for more). Tap one (it appears in the middle) or drag it up onto the map. |
-| 🚜 Remove | Tap or drag over roads and buildings. |
+| 🏠 🏪 🏥 🗼 ✈️ … | Opens that group's buildings in one row (swipe sideways for more). Tap one (it appears in the middle) or drag it up onto the map. |
+| 🌳 Decoration | Works like Plot: pick one, then tap or drag on the map to put them down. The menu stays open until you tap 🌳 again. |
+| 🚜 Remove | Tap or drag over roads and buildings. Tap Remove again to go back to Move. |
+
+Tapping the button of the menu that is open closes it and goes back to ✋ Move. The Plot menu also stays open
+while you paint.
 
 While a building waits to be built, drag it around (green = OK, red = blocked). Dragging beside it moves the
 map, and pinching still zooms. Then:
 ✔ builds it, ✖ cancels, 🔄 turns it (mirrors the picture, so a 2×1 building becomes 1×2).
-Both go back to ✋ Move. With ✋ Move, tap a building to pick it up and move or turn it the same way
+Both go back to ✋ Move. Pressing another button instead builds it when its spot is OK (green) and drops it
+when it is not (a building you were moving goes back). With ✋ Move, tap a building to pick it up and move or turn it the same way
 (✖ puts it back where it was).
 
 Buildings don't need roads. You can build on grass and sand, but not on water. Cities save themselves in the
@@ -50,8 +55,15 @@ browser a moment after every change, once a minute, and when you leave the city 
 What moves on its own:
 - People walk out of doors, use sidewalks (or cut across grass), and walk into other buildings.
 - Cars drive on the right-hand lane of every road and queue behind each other.
-- Police cars leave the station garage, patrol, and come home. This needs a road touching the garage side.
+- Police cars and the ambulance leave their building, patrol, and come home. This needs a road touching
+  the garage side (police, fire station) or the door (hospital).
+- Helicopters on the police station, hospital and fire station roofs take off now and then. The police
+  helicopter shines a light on a building; the hospital helicopter makes a short flight.
+- Every few minutes a building near a fire station catches fire. The fire helicopter sprays water on it and
+  the fire truck drives there (if a road connects them). Nothing burns down.
 - Planes land, taxi to a gate, wait, and take off again.
+- Docks can only be built touching water. Each sends its ship (container ship or cruise ship) out to sea
+  and back.
 
 ## Your own art
 
@@ -63,13 +75,13 @@ in the build bar.
 
 | File | What's in it |
 |---|---|
-| `src/themes/city.js` | The city theme: menu icons, building names, doors, police garage, airport layout. |
+| `src/themes/city.js` | The city theme: menu icons, building names, doors, garages, helicopters, fires, docks, airport layout. |
 | `src/themes/catalog.js` | Turns the `assets/building-<theme>/` folders into the building list. |
 | `src/menu.js`, `src/saves.js` | Start menu and saved cities. |
 | `src/ui.js` | Build bar, building menus, ✔ ✖ 🔄 buttons. |
 | `src/data/art.js` | Art file counts and sprite-sheet frame sizes. |
 | `src/constants.js` | Square size, map size, zoom levels, speeds, lane offsets. |
 | `src/world/` | Map generation, world state, ground and road drawing, building drawing, effects. |
-| `src/agents/` | People, cars and police, planes, path finding. |
+| `src/agents/` | People, cars, patrols, fire trucks, helicopters and fires, planes, ships, path finding. |
 | `src/input/Controls.js` | Touch and mouse: tools, pan, pinch-zoom. |
 | `src/art/` | Pixel rasterizer and the code-drawn art (grass, sand, water, roads, people, cars, planes). |
