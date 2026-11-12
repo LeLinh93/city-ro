@@ -537,9 +537,11 @@ export class GameScene extends Phaser.Scene {
     return best;
   }
 
+  // Only what stands on the touched square: a tall building's picture reaching over other squares
+  // doesn't count, so dragging past a tower doesn't knock it down by accident.
   bulldoze([i, j]) {
     const w = this.world;
-    const b = this.buildingUnderPointer() || w.buildingAt(i, j);
+    const b = w.buildingAt(i, j);
     if (b) w.removeBuilding(b.id);
     else if (w.removeRoad(i, j)) this.fx.dustSquares([[i, j]]);
   }

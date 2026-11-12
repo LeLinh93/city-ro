@@ -51,6 +51,8 @@ const isPaint = (id) => typeof id === 'string' && id.startsWith('paint:');
 const isDeco = (id) => typeof id === 'string' && id.startsWith('deco:');
 
 const DRAG_START = 12; // px a finger must move before a menu item is dragged instead of tapped
+const HOLD_MS = 350; // pressing this long before moving always picks the building up (in any direction)
+const CARRY_LIFT = 50; // px the carried building sits above the finger, so the finger doesn't hide it
 
 export class UI {
   constructor(onHome) {
@@ -92,7 +94,7 @@ export class UI {
       // let the finger's events go to whatever is under it (the map, once it leaves the menu)
       if (e.target.hasPointerCapture?.(e.pointerId)) e.target.releasePointerCapture(e.pointerId);
       const def = e.target.closest?.('.item')?.def || null;
-      this.drag = { def, x0: e.clientX, y0: e.clientY, id: e.pointerId, started: false, scroll: null };
+      this.drag = { def, x0: e.clientX, y0: e.clientY, t0: performance.now(), id: e.pointerId, started: false, scroll: null };
     });
     this.sub.addEventListener('wheel', (e) => {
       this.sub.scrollLeft += Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
@@ -113,6 +115,10 @@ export class UI {
     this.scene = scene;
     scene.events.off('picked-up'); // the scene object is reused for every city
     scene.events.off('disaster');
+    // a tap on the ground beside a waiting building: it is built where it is if that spot is OK (green),
+    // else dropped (a building being moved goes back) — see settle()
+    scene.events.off('tap-off-placing');
+    scene.events.on('tap-off-placing', () => this.select('hand', false));
     scene.events.on('disaster', (on) => this.lock(on));
     this.bar.classList.remove('locked');
     this.stop.classList.add('hidden');
@@ -301,31 +307,45 @@ export class UI {
     this.showHint(HINTS.placing);
   }
 
-  // A finger that starts on a menu: a tap picks the item, a sideways swipe scrolls the menu,
-  // and (in a building menu) a drag upwards carries the building onto the map.
+  // A finger that starts on a menu: a tap picks the item, a sideways swipe scrolls the menu, and (in a
+  // building menu) a drag upwards, a drag that leaves the menu, or press-hold-and-drag carries the building
+  // onto the map.
   dragMove(e) {
     const d = this.drag;
     if (!d || e.pointerId !== d.id || !this.scene) return;
+    const carriable = d.def && !d.def.paint && !d.def.action && !d.def.mode && !this.painter;
     if (d.scroll !== null) {
-      this.sub.scrollLeft = d.scroll - (e.clientX - d.x0);
-      return;
+      // scrolling the menu, until the finger leaves it upwards onto the map: then the building comes along
+      if (carriable && e.clientY < this.sub.getBoundingClientRect().top - 8) {
+        d.scroll = null;
+        this.carry(d);
+      } else {
+        this.sub.scrollLeft = d.scroll - (e.clientX - d.x0);
+        return;
+      }
     }
     if (!d.started) {
       const dx = e.clientX - d.x0;
       const dy = e.clientY - d.y0;
       if (Math.hypot(dx, dy) < DRAG_START) return;
-      const up = dy < 0 && -dy >= Math.abs(dx) * 0.7;
-      if (!d.def || d.def.paint || d.def.action || d.def.mode || this.painter || !up) {
+      const up = dy < 0 && -dy >= Math.abs(dx) * 0.5;
+      const held = performance.now() - d.t0 > HOLD_MS;
+      if (!carriable || !(up || held)) {
         d.scroll = this.sub.scrollLeft + dx; // so the menu doesn't jump by the first few pixels
         this.sub.scrollLeft = d.scroll - dx;
         return;
       }
-      d.started = true;
-      this.settle();
-      this.sub.classList.add('carrying'); // hidden for real when the finger lifts
-      this.highlight(d.def.id);
+      this.carry(d);
     }
-    this.scene.startPlacing(d.def.id, this.scene.squareAtClient(e.clientX, e.clientY));
+    this.scene.startPlacing(d.def.id, this.scene.squareAtClient(e.clientX, e.clientY - CARRY_LIFT));
+  }
+
+  // Start carrying the building of menu item d.def out onto the map.
+  carry(d) {
+    d.started = true;
+    this.settle();
+    this.sub.classList.add('carrying'); // hidden for real when the finger lifts
+    this.highlight(d.def.id);
   }
 
   dragEnd(e, cancelled = false) {

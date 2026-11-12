@@ -39,18 +39,19 @@ In a city, 🏠 (top right) saves and goes back to the menu.
 | 🔳 Select | Drag a box: every building touching it is picked up. Drag the group somewhere else (red = doesn't fit), then ✔ puts them all down or ✖ puts them back. Groups don't turn. |
 | 🛣️ Road | Drag to draw roads. They go straight along the grid; move sideways to turn a corner. Tap Road again to go back to Move. |
 | 🖌️ Plot | Pick grass, sand, water or pavement, then tap or drag to paint the ground. Water can't go under roads or buildings. |
-| 🏠 🏪 🏥 🗼 ✈️ … | Opens that group's buildings in one row (swipe sideways for more). Tap one (it appears in the middle) or drag it up onto the map. |
+| 🏠 🏪 🏥 🗼 ✈️ … | Opens that group's buildings in one row (swipe sideways for more). Tap one (it appears in the middle) or drag it onto the map: drag up, drag out of the menu in any direction, or hold it a moment and then drag. |
 | 🌳 Decoration | Works like Plot: pick one, then tap or drag on the map to put them down. The menu stays open until you tap 🌳 again. |
 | ⚡ Disaster | 🏚️ Earthquake, 🌪️ Tornado, 🌊 Tsunami, ☄️ Meteor or 🌋 Volcano. While it lasts, the build bar is locked and buildings can't be picked up (looking around and zooming still work); the red ⏹ Stop disaster button at the top middle ends it straight away. |
 | 🔧 Repair | Fixes every ruined building and puts out every fire. |
-| 🚜 Remove | Tap or drag over roads and buildings. Tap Remove again to go back to Move. |
+| 🚜 Remove | Tap or drag over roads and buildings. Only the squares a building stands on count, so a tall building is not removed by touching its roof. Tap Remove again to go back to Move. |
 
 Tapping the button of the menu that is open closes it and goes back to ✋ Move. The Plot menu also stays open
 while you paint. Plot and Decoration start with two modes: 🖌️ Brush (tap or drag, square by square) and
 🔲 Area (drag a rectangle; it is filled when you let go, and decorations only go on free spots).
 
 While a building waits to be built, drag it around (green = OK, red = blocked). Dragging beside it moves the
-map, and pinching still zooms. Then:
+map, pinching still zooms, and a quick tap on the ground beside it builds it where it is if that spot is OK
+(green), or else cancels it like ✖. Then:
 ✔ builds it, ✖ cancels, 🔄 turns it (mirrors the picture, so a 2×1 building becomes 1×2).
 Both go back to ✋ Move. Pressing another button instead builds it when its spot is OK (green) and drops it
 when it is not (a building you were moving goes back). With ✋ Move, tap a building to pick it up and move or turn it the same way

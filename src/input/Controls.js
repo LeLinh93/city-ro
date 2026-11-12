@@ -55,8 +55,8 @@ export class Controls {
     }
     const tool = this.scene.tool;
     if (this.scene.pending && !this.scene.onPending(screenToWorld(this.cam, p.x, p.y))) {
-      // a building waits for ✔ / ✖: a finger beside it moves the map
-      this.pan = { x: p.x, y: p.y, moved: 0 };
+      // a building waits for ✔ / ✖: a finger beside it moves the map, a quick tap beside it cancels it
+      this.pan = { x: p.x, y: p.y, moved: 0, offTap: true, t0: this.scene.time.now };
       return;
     }
     if (tool === 'hand') {
@@ -140,9 +140,9 @@ export class Controls {
     }
     const pan = this.pan;
     this.pan = null;
-    if (pan?.tap && pan.moved < TAP_MOVE * dpr() && this.scene.time.now - pan.t0 < TAP_MS) {
-      this.scene.handTap(this.squareAt(p));
-    }
+    const tapped = pan && pan.moved < TAP_MOVE * dpr() && this.scene.time.now - pan.t0 < TAP_MS;
+    if (tapped && pan.tap) this.scene.handTap(this.squareAt(p));
+    if (tapped && pan.offTap && this.scene.pending) this.scene.events.emit('tap-off-placing');
     if (this.action && this.action.pointer === p.id) {
       this.scene.toolUp(this.squareAt(p), this.action);
       this.action = null;
