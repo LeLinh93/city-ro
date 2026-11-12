@@ -554,7 +554,7 @@ body.in-menu #hud {
 }
 
 /* the 🗑️ over the UFO (ui.js moves it there) */
-#ufo-del {
+#foe-del {
   position: fixed;
   left: 0;
   top: 0;

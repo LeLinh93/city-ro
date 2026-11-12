@@ -21,6 +21,8 @@ const HINTS = {
   busy: 'Wait until this disaster is over.',
   ufo: '🛸 A UFO! The army is on its way. Tap the UFO to take it away.',
   ufoBusy: 'There is already a UFO. Tap it to take it away.',
+  kaiju: '🦖 A kaiju is coming! The army is on its way. Tap the kaiju to take it away.',
+  kaijuBusy: 'There is already a kaiju. Tap it to take it away.',
   brush: 'Brush: tap or drag to do one square at a time.',
   area: 'Area: drag a rectangle on the map. It is filled when you let go.',
   areaDeco: 'Area: drag a rectangle on the map. Every free spot in it is filled when you let go.',
@@ -48,6 +50,7 @@ const DISASTERS = [
   { action: 'meteor', name: 'Meteor', icon: '☄️' },
   { action: 'volcano', name: 'Volcano', icon: '🌋' },
   { action: 'ufo', name: 'UFO', icon: '🛸' },
+  { action: 'kaiju', name: 'Kaiju', icon: '🦖' },
 ];
 
 const isPaint = (id) => typeof id === 'string' && id.startsWith('paint:');
@@ -99,11 +102,13 @@ export class UI {
     this.del.addEventListener('click', () => {
       if (this.scene?.deletePlacing()) this.select('hand', false);
     });
-    // 🗑️ over the UFO, shown after tapping it
-    this.ufoDel = document.getElementById('ufo-del');
-    this.ufoDel.addEventListener('click', () => {
-      if (this.scene?.ufo.remove()) this.showHint('🛸 The UFO is gone.');
-      this.ufoDel.classList.add('hidden');
+    // 🗑️ over the UFO or the kaiju, shown after tapping it
+    this.foe = null;
+    this.foeDel = document.getElementById('foe-del');
+    this.foeDel.addEventListener('click', () => {
+      const foe = this.foe;
+      if (foe?.remove()) this.showHint(foe === this.scene?.ufo ? '🛸 The UFO is gone.' : '🦖 The kaiju is gone.');
+      this.hideFoeDel();
     });
     this.flip = document.getElementById('place-flip');
     this.flip.addEventListener('click', () => this.scene?.flipPlacing());
@@ -135,13 +140,22 @@ export class UI {
     this.scene = scene;
     scene.events.off('picked-up'); // the scene object is reused for every city
     scene.events.off('disaster');
-    scene.events.off('ufo-tap');
+    scene.events.off('foe-tap');
     scene.events.off('ufo');
-    scene.events.on('ufo-tap', (on) => this.ufoDel.classList.toggle('hidden', !on));
-    scene.events.on('ufo', (on) => {
+    scene.events.off('kaiju');
+    scene.events.on('foe-tap', (foe) => {
+      this.foe = foe;
+      this.foeDel.classList.toggle('hidden', !foe);
+    });
+    scene.events.on('ufo', (on, shot) => {
       if (on) return;
-      this.ufoDel.classList.add('hidden');
-      if (scene.ufo.ufo?.hp <= 0) this.showHint('💥 The UFO was shot down!');
+      if (this.foe === scene.ufo) this.hideFoeDel();
+      if (shot) this.showHint('💥 The UFO was shot down!');
+    });
+    scene.events.on('kaiju', (on, defeated) => {
+      if (on) return;
+      if (this.foe === scene.kaiju) this.hideFoeDel();
+      if (defeated) this.showHint('💥 The kaiju was defeated!');
     });
     // a tap on the ground beside a waiting building: it is built where it is if that spot is OK (green),
     // else dropped (a building being moved goes back) — see settle()
@@ -170,7 +184,7 @@ export class UI {
 
   detach() {
     this.scene = null;
-    this.ufoDel.classList.add('hidden');
+    this.hideFoeDel();
     this.bar.classList.remove('locked');
     this.stop.classList.add('hidden');
     document.body.classList.remove('disaster');
@@ -328,6 +342,11 @@ export class UI {
     if (on) this.select('hand', false);
   }
 
+  hideFoeDel() {
+    this.foe = null;
+    this.foeDel.classList.add('hidden');
+  }
+
   // Tapped a menu item.
   pick(def) {
     if (def.mode) {
@@ -336,10 +355,10 @@ export class UI {
       this.showHint(def.mode === 'brush' ? HINTS.brush : this.openMenu === 'plot' ? HINTS.area : HINTS.areaDeco);
       return;
     }
-    if (def.action === 'ufo') {
-      // the UFO doesn't lock the build bar: it is not one of the disasters that has to finish
+    if (def.action === 'ufo' || def.action === 'kaiju') {
+      // the UFO and the kaiju don't lock the build bar: they are not disasters that have to finish
       this.select('hand', false);
-      this.showHint(this.scene.ufo.spawn() ? HINTS.ufo : HINTS.ufoBusy);
+      this.showHint(this.scene[def.action].spawn() ? HINTS[def.action] : HINTS[`${def.action}Busy`]);
       return;
     }
     if (def.action) {
@@ -421,11 +440,11 @@ export class UI {
   // ---------- ✔ ✖ 🔄 above the building being placed ----------
 
   updatePlace() {
-    // the UFO's 🗑️ follows it
-    if (!this.ufoDel.classList.contains('hidden')) {
-      const u = this.scene?.ufo.anchor();
-      if (!u) this.ufoDel.classList.add('hidden');
-      else this.ufoDel.style.transform = `translate(${Math.round(u.x - 30)}px, ${Math.round(Math.max(70, u.y - 90))}px)`;
+    // the 🗑️ follows the UFO or kaiju it belongs to
+    if (!this.foeDel.classList.contains('hidden')) {
+      const u = this.foe?.anchor();
+      if (!u) this.hideFoeDel();
+      else this.foeDel.style.transform = `translate(${Math.round(u.x - 30)}px, ${Math.round(Math.max(70, u.y - 90))}px)`;
     }
     const a = this.scene?.placingAnchor();
     if (!a || this.drag?.started) {

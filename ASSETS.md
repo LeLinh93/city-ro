@@ -201,6 +201,13 @@ Without these files the game falls back to simple code-drawn cars and planes.
 `mothership-sheet.png`: the UFO, a sheet of 4 views like the vehicles (listed as `ufo` in `src/data/vehicles.js`,
 6 squares wide). `npm run art` writes `assets/vehicles/ufo.png`.
 
+`kaiju-sheet.png`, `kaiju-walk-sheet.png`, `kaiju-roar-sheet.png`: the kaiju. Each is a grid of equal cells, the 4
+views across (as for the vehicles) and one row per frame: 1 standing, 12 walking, 4 roaring (opening its mouth).
+Keep the frames lined up with each other in their cells. The down-right and up-left views must be mirror images of
+down-left and up-right: the game only keeps those two and flips them. The cell size, how much it is shrunk, and where
+its feet and mouth are in the cells are set in `src/data/kaiju.js`. `npm run art` writes
+`assets/disaster/kaiju_sw.png` and `kaiju_ne.png`.
+
 `volcano-8x8.png`: the volcano, drawn like a building that covers 8 × 8 squares (any size, transparent
 background). `npm run art` shrinks it to 1024 px wide. The crater's position in that picture is set in
 `src/agents/Disasters.js` (`CRATER`).

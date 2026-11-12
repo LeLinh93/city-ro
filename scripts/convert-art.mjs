@@ -14,6 +14,7 @@
 //     (same folder + name as the game file; any of .png .webp .jpg).
 //  3. Vehicle sheets listed in src/data/vehicles.js: art-source/vehicles/<sheet> -> assets/vehicles/<id>.png
 //     (4 views side by side, cut apart at the empty space between them, shrunk and centred on the point under the vehicle).
+//     The kaiju's sheets (src/data/kaiju.js): art-source/disaster/kaiju-*.png -> assets/disaster/kaiju_sw.png, kaiju_ne.png.
 //  4. A job list in art-source/convert.json, e.g. to cut several tiles out of one sheet:
 //     { "jobs": [ { "from": "tiles.webp", "crop": [0, 0, 512, 256], "to": "ground/grass_0.png" } ] }
 //
@@ -29,6 +30,7 @@ import sharp from 'sharp';
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, extname, join, relative } from 'node:path';
 import { VEHICLES } from '../src/data/vehicles.js';
+import { KAIJU } from '../src/data/kaiju.js';
 
 const EXTS = new Set(['.png', '.webp', '.jpg', '.jpeg']);
 
@@ -255,9 +257,11 @@ function clipDiamond(p) {
 }
 
 // Median-cut colour reduction (no dithering), so pixels form clean flat areas.
-function reduceColors(p, n) {
+// step: build the palette from every step-th solid pixel only (for very big pictures)
+function reduceColors(p, n, step = 1) {
   const pts = [];
-  for (let i = 0; i < p.d.length; i += 4) if (p.d[i + 3]) pts.push([p.d[i], p.d[i + 1], p.d[i + 2]]);
+  let seen = 0;
+  for (let i = 0; i < p.d.length; i += 4) if (p.d[i + 3] && seen++ % step === 0) pts.push([p.d[i], p.d[i + 1], p.d[i + 2]]);
   if (!pts.length) return;
   let boxes = [pts];
   while (boxes.length < n) {
@@ -364,6 +368,12 @@ function collectJobs() {
       used.add(j.from.replace(/\\/g, '/'));
     }
   }
+  // the kaiju: its 3 sheets make 2 game files
+  const kaijuSheets = KAIJU.sheets.map(([f]) => `disaster/${f}`);
+  if (kaijuSheets.every((f) => existsSync(join(SRC, f)))) {
+    for (const view of Object.keys(KAIJU.box)) jobs.push({ from: kaijuSheets[1], to: `disaster/kaiju_${view}.png`, kaiju: view, sources: kaijuSheets });
+  }
+  for (const f of kaijuSheets) used.add(f);
   const walk = (dir) => {
     for (const f of readdirSync(dir)) {
       const full = join(dir, f);
@@ -454,7 +464,39 @@ async function runVehicle(job) {
   console.log(`${job.from} -> ${dest}  4 frames of ${hw * 2}x${hh * 2}`);
 }
 
+// The kaiju: one view of every frame of its 3 sheets, cut from the same box of each cell, shrunk and laid out
+// KAIJU.cols frames across.
+async function runKaiju(job) {
+  const view = job.kaiju;
+  const [cw, ch] = KAIJU.cell;
+  const [x0, y0, x1, y1] = KAIJU.box[view];
+  const fw = Math.round((x1 - x0) * KAIJU.scale);
+  const fh = Math.round((y1 - y0) * KAIJU.scale);
+  const total = KAIJU.sheets.reduce((n, [, rows]) => n + rows, 0);
+  const rowsOut = Math.ceil(total / KAIJU.cols);
+  const out = img(fw * KAIJU.cols, fh * rowsOut);
+  let n = 0;
+  for (const [file, rows] of KAIJU.sheets) {
+    const left = KAIJU.column[view] * cw + x0;
+    for (let r = 0; r < rows; r++, n++) {
+      const { data } = await sharp(join(SRC, 'disaster', file))
+        .extract({ left, top: r * ch + y0, width: x1 - x0, height: y1 - y0 }).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+      const f = boxResize({ w: x1 - x0, h: y1 - y0, d: new Uint8ClampedArray(data) }, fw, fh);
+      hardAlpha(f, 0.5);
+      const ox = (n % KAIJU.cols) * fw;
+      const oy = Math.floor(n / KAIJU.cols) * fh;
+      for (let y = 0; y < fh; y++) out.d.set(f.d.subarray(y * fw * 4, (y + 1) * fw * 4), ((oy + y) * out.w + ox) * 4);
+    }
+  }
+  reduceColors(out, job.colors ?? 96, 7);
+  const dest = join(OUT, job.to);
+  mkdirSync(dirname(dest), { recursive: true });
+  await sharp(Buffer.from(out.d.buffer), { raw: { width: out.w, height: out.h, channels: 4 } }).png({ compressionLevel: 9 }).toFile(dest);
+  console.log(`kaiju ${view} -> ${dest}  ${total} frames of ${fw}x${fh}`);
+}
+
 async function run(job) {
+  if (job.kaiju) return runKaiju(job);
   if (job.vehicle) return runVehicle(job);
   const t = targetFor(job.to, job);
   let pipe = sharp(join(SRC, job.from));
@@ -507,6 +549,7 @@ const mtime = (f) => (existsSync(f) ? statSync(f).mtimeMs : 0);
 const cfgTime = mtime(join(SRC, 'convert.json'));
 function upToDate(job) {
   const out = mtime(join(OUT, job.to));
+  if (job.sources) return out > 0 && job.sources.every((f) => out >= mtime(join(SRC, f))) && out >= mtime('src/data/kaiju.js');
   return out > 0 && out >= mtime(join(SRC, job.from)) && (!job.listed || out >= cfgTime)
     && (!job.vehicle || out >= mtime('src/data/vehicles.js')); // a changed vehicle size redoes the vehicles
 }
