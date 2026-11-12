@@ -1,11 +1,13 @@
 import { DEPTH, HW } from '../constants.js';
 import { toWorld } from '../iso.js';
+import { ruinTexture } from '../art/ruin.js';
 
 // Which texture to use and whether to mirror it. Turning a building mirrors its picture.
-export function buildingTexture(scene, def, rot, which = 'image') {
+// A ruined building uses a ruined copy of its picture.
+export function buildingTexture(scene, def, rot, which = 'image', ruined = false) {
   const key = def[which];
   if (!key) return null;
-  return { key, flip: !!rot };
+  return { key: ruined ? ruinTexture(scene, key, def) : key, flip: !!rot };
 }
 
 // Screen placement of a footprint: the image's bottom edge touches the
@@ -51,7 +53,7 @@ export class BuildingView {
     const place = footprintPlacement(b.x, b.y, b.w, b.d);
     this.place = place;
 
-    const baseTex = buildingTexture(scene, def, b.rot, 'base');
+    const baseTex = buildingTexture(scene, def, b.rot, 'base', b.ruined);
     if (baseTex) {
       const tex = scene.textures.get(baseTex.key);
       const scale = place.width / tex.source[0].width;
@@ -60,7 +62,7 @@ export class BuildingView {
       this.parts.push(im);
     }
 
-    const main = buildingTexture(scene, def, b.rot, 'image');
+    const main = buildingTexture(scene, def, b.rot, 'image', b.ruined);
     const tex = scene.textures.get(main.key);
     const srcW = tex.source[0].width;
     const srcH = tex.source[0].height;

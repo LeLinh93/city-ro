@@ -10,6 +10,11 @@ const HINTS = {
   paint: "Tap or drag to paint the ground. Water can't go under roads or buildings.",
   painter: 'Pick one, then tap or drag on the map to put them down.',
   deco: 'Tap or drag on the map to put them down. Tap the menu button again when you are done.',
+  disaster: 'Pick a disaster. 🔧 Repair fixes every ruined building afterwards.',
+  earthquake: 'Earthquake!',
+  tornado: 'A tornado is coming!',
+  tsunami: 'Tsunami! A huge wave is coming from the sea.',
+  busy: 'Wait until this disaster is over.',
   placing: 'Drag the building to move it, or drag beside it to look around. ✔ builds it, 🔄 turns it, ✖ cancels.',
 };
 
@@ -20,6 +25,13 @@ const PAINTS = [
   { paint: 'water', name: 'Water', texture: 'water_0' },
   { paint: 'pavement', name: 'Pavement', texture: 'pavement_0' },
 ];
+// The Disaster menu: actions that happen straight away.
+const DISASTERS = [
+  { action: 'earthquake', name: 'Earthquake', icon: '🏚️' },
+  { action: 'tornado', name: 'Tornado', icon: '🌪️' },
+  { action: 'tsunami', name: 'Tsunami', icon: '🌊' },
+];
+
 const isPaint = (id) => typeof id === 'string' && id.startsWith('paint:');
 const isDeco = (id) => typeof id === 'string' && id.startsWith('deco:');
 
@@ -76,6 +88,9 @@ export class UI {
   attach(scene) {
     this.scene = scene;
     scene.events.off('picked-up'); // the scene object is reused for every city
+    scene.events.off('disaster');
+    scene.events.on('disaster', (on) => this.lock(on));
+    this.bar.classList.remove('locked');
     scene.events.on('picked-up', (type) => {
       this.closeMenu();
       this.highlight(type);
@@ -87,6 +102,7 @@ export class UI {
 
   detach() {
     this.scene = null;
+    this.bar.classList.remove('locked');
     this.closeMenu();
     this.place.classList.add('hidden');
   }
@@ -119,7 +135,9 @@ export class UI {
       this.button(`menu:${m.name}`, m.icon, m.name,
         () => this.toggleMenu(`menu:${m.name}`, m.items, m.paint, m.paint ? HINTS.painter : HINTS.menu));
     }
-    this.button('bulldoze', '🚜', 'Remove', () => this.toggleTool('bulldoze'));
+    this.button('disaster', '⚡', 'Disaster', () => this.toggleMenu('disaster', DISASTERS, false, HINTS.disaster));
+    this.button('repair', '🔧', 'Repair', () => this.repair());
+    this.button('bulldoze', '🚜', 'Remove', () => this.toggleTool('bulldoze')); // always the last button
   }
 
   // A building that waits for ✔ / ✖ when another button is pressed: built if its spot is fine, else dropped
@@ -178,16 +196,23 @@ export class UI {
     for (const def of items) {
       const item = document.createElement('button');
       item.className = 'item';
-      const pic = document.createElement('img');
-      pic.src = def.url;
-      pic.alt = '';
-      pic.draggable = false;
+      let pic;
+      if (def.icon) {
+        pic = document.createElement('span');
+        pic.className = 'big';
+        pic.textContent = def.icon;
+      } else {
+        pic = document.createElement('img');
+        pic.src = def.url;
+        pic.alt = '';
+        pic.draggable = false;
+      }
       const name = document.createElement('span');
       name.className = 'name';
       name.textContent = def.name;
       const size = document.createElement('span');
       size.className = 'size';
-      size.textContent = def.paint ? '' : `${def.w}×${def.d}`;
+      size.textContent = def.paint || def.action ? '' : `${def.w}×${def.d}`;
       item.append(pic, name, size);
       item.def = def;
       this.sub.appendChild(item);
@@ -205,8 +230,26 @@ export class UI {
     this.sub.classList.remove('carrying');
   }
 
+  // 🔧 Repair: fix every ruined building.
+  repair() {
+    this.select('hand', false);
+    const n = this.scene.disasters.repair();
+    this.showHint(n < 0 ? HINTS.busy : n ? `Repaired ${n} building${n === 1 ? '' : 's'}.` : 'Nothing needs repairing.');
+  }
+
+  // While a disaster is going on, the build bar can't be used (looking around and zooming still work).
+  lock(on) {
+    this.bar.classList.toggle('locked', on);
+    if (on) this.select('hand', false);
+  }
+
   // Tapped a menu item.
   pick(def) {
+    if (def.action) {
+      this.select('hand', false);
+      this.showHint(this.scene.disasters.start(def.action) ? HINTS[def.action] : HINTS.busy);
+      return;
+    }
     if (def.paint || this.painter) {
       const id = def.paint ? `paint:${def.paint}` : `deco:${def.id}`;
       this.scene.setTool(id);
@@ -235,7 +278,7 @@ export class UI {
       const dy = e.clientY - d.y0;
       if (Math.hypot(dx, dy) < DRAG_START) return;
       const up = dy < 0 && -dy >= Math.abs(dx) * 0.7;
-      if (!d.def || d.def.paint || this.painter || !up) {
+      if (!d.def || d.def.paint || d.def.action || this.painter || !up) {
         d.scroll = this.sub.scrollLeft + dx; // so the menu doesn't jump by the first few pixels
         this.sub.scrollLeft = d.scroll - dx;
         return;

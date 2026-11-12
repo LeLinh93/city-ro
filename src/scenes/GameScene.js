@@ -11,6 +11,7 @@ import { Traffic } from '../agents/Traffic.js';
 import { Airports } from '../agents/Airports.js';
 import { Ships } from '../agents/Ships.js';
 import { Services } from '../agents/Services.js';
+import { Disasters } from '../agents/Disasters.js';
 import { Controls } from '../input/Controls.js';
 import { loadCity, saveCity } from '../saves.js';
 import { GROUND } from '../constants.js';
@@ -49,6 +50,7 @@ export class GameScene extends Phaser.Scene {
     this.ships = new Ships(this, world);
     this.services = new Services(this, world, this.traffic);
     this.people = new People(this, world, this.pf);
+    this.disasters = new Disasters(this, world, { people: this.people, traffic: this.traffic });
     this.ghost = new Ghost(this);
 
     world.on('building-added', (b, silent) => {
@@ -63,11 +65,31 @@ export class GameScene extends Phaser.Scene {
       this.fx.removeChimneys(b);
       if (!silent) this.fx.dustFootprint(b);
     });
+    // A ruined or repaired building gets its picture swapped.
+    const redraw = (b) => {
+      this.views.get(b.id)?.destroy(false);
+      this.fx.removeChimneys(b);
+      const view = new BuildingView(this, b, false);
+      this.views.set(b.id, view);
+      if (!b.ruined) this.fx.addChimneys(view);
+      return view;
+    };
+    world.on('building-ruined', (b, silent) => {
+      const view = redraw(b);
+      if (!silent) this.fx.collapse(b, view);
+    });
+    world.on('building-repaired', (b) => {
+      redraw(b);
+      this.fx.dustFootprint(b);
+    });
     // Auto save: shortly after every change, plus once a minute just in case.
     world.on('changed', () => this.queueSave());
     this.time.addEvent({ delay: 60000, loop: true, callback: () => this.saveNow() });
 
-    for (const [type, x, y, rot] of world.pendingBuildings || []) world.addBuilding(type, x, y, rot, { silent: true });
+    for (const [type, x, y, rot, , , ruined] of world.pendingBuildings || []) {
+      const b = world.addBuilding(type, x, y, rot, { silent: true });
+      if (b && ruined) world.ruinBuilding(b, { silent: true });
+    }
     world.pendingBuildings = null;
     if (!loadCity(this.city.id)) this.saveNow(); // a brand new city is saved right away
 
@@ -94,6 +116,7 @@ export class GameScene extends Phaser.Scene {
     this.airports.update(time, dt);
     this.ships.update(time, dt);
     this.services.update(time, dt);
+    this.disasters.update(time, dt);
   }
 
   // ---------- tools ----------
@@ -209,7 +232,7 @@ export class GameScene extends Phaser.Scene {
   handTap(sq) {
     if (this.tool !== 'hand' || this.pending) return;
     const b = this.buildingUnderPointer() || this.world.buildingAt(...sq);
-    if (!b) return;
+    if (!b || b.ruined || this.disasters.busy) return; // ruins can be repaired or removed, not moved
     this.world.removeBuilding(b.id, { silent: true });
     this.tool = b.type;
     this.rot = b.rot;

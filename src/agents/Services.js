@@ -33,12 +33,12 @@ export class Services {
       emitting: false,
     }).setDepth(DEPTH.AIR - 1);
 
-    world.on('building-added', (b) => {
+    // a ruined building counts as gone until it is repaired
+    world.onBuilding((b) => {
       const h = b.def.heli;
       if (h && hasVehicle(scene, h.vehicle)) this.addHeli(b, h);
       if (b.def.fire) this.stations.set(b.id, { b, next: scene.time.now + rand(...b.def.fire.every) });
-    });
-    world.on('building-removed', (b) => {
+    }, (b) => {
       const h = this.helis.get(b.id);
       if (h) this.removeHeli(h);
       this.helis.delete(b.id);
@@ -73,7 +73,7 @@ export class Services {
     const cx = b.x + b.w / 2;
     const cy = b.y + b.d / 2;
     for (const o of this.world.buildings.values()) {
-      if (o === b || !ok(o)) continue;
+      if (o === b || o.ruined || !ok(o)) continue;
       if (Math.hypot(o.x + o.w / 2 - cx, o.y + o.d / 2 - cy) <= radius) out.push(o);
     }
     return out;

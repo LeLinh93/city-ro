@@ -24,6 +24,7 @@ export class Effects {
       emitting: false,
     }).setDepth(DEPTH.AIR - 9);
     this.chimneys = new Map(); // building id -> [{x, y, next}]
+    this.ruins = []; // smoking ruins: [{ x, y, w, until, next }]
   }
 
   addChimneys(view) {
@@ -56,7 +57,22 @@ export class Effects {
     this.dustSquares(squares);
   }
 
+  // A building falls down: dust around it, and smoke from the break for a while.
+  collapse(b, view) {
+    this.dustFootprint(b);
+    const tex = view.parts[view.parts.length - 1];
+    const top = tex ? tex.y - tex.displayHeight * 0.55 : view.place.tipY - 40;
+    const now = this.scene.time.now;
+    this.ruins.push({ x: view.place.left + view.place.width / 2, y: top, w: view.place.width * 0.4, until: now + 9000, next: now });
+  }
+
   update(time) {
+    this.ruins = this.ruins.filter((r) => time < r.until);
+    for (const r of this.ruins) {
+      if (time < r.next) continue;
+      this.smoke.emitParticleAt(r.x + rand(-r.w / 2, r.w / 2), r.y, 1);
+      r.next = time + rand(120, 300);
+    }
     for (const list of this.chimneys.values()) {
       for (const c of list) {
         if (time < c.next) continue;

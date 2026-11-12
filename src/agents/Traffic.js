@@ -21,15 +21,15 @@ export class Traffic {
     this.spawnTimer = 0;
     this.variants = scene.registry.get('variants').car; // code-drawn stand-ins
     this.carIds = CARS.filter((id) => hasVehicle(scene, id));
-    world.on('building-added', (b) => {
+    // a ruined building counts as gone until it is repaired
+    world.onBuilding((b) => {
       const p = b.def.patrol;
       if (!p) return;
       const now = scene.time.now;
       const slots = [];
       for (let k = 0; k < (p.count || 1); k++) slots.push({ car: null, next: now + 1500 + k * 6000 });
       this.stations.set(b.id, { b, p, slots });
-    });
-    world.on('building-removed', (b) => {
+    }, (b) => {
       this.stations.delete(b.id);
       for (const c of this.cars) if (c.station === b.id) this.despawn(c);
     });
@@ -240,6 +240,19 @@ export class Traffic {
     const pos = toWorld(m.px, m.py);
     faceVehicle(car.v, m.dir[0], m.dir[1], time);
     car.sprite.setPosition(Math.round(pos.x), Math.round(pos.y)).setDepth(m.px + m.py + 0.05);
+  }
+
+  // Hand a car over to something else (a tornado, a wave): it leaves the traffic without fading out.
+  take(c) {
+    if (c.leaving) return null;
+    c.leaving = true;
+    c.gone = true;
+    const st = c.slot !== undefined && this.stations.get(c.station);
+    if (st && st.slots[c.slot]?.car === c) {
+      st.slots[c.slot].car = null;
+      st.slots[c.slot].next = this.scene.time.now + rand(...(st.p.rest || [4000, 9000]));
+    }
+    return c.sprite;
   }
 
   despawn(c) {

@@ -37,6 +37,8 @@ In a city, 🏠 (top right) saves and goes back to the menu.
 | 🖌️ Plot | Pick grass, sand, water or pavement, then tap or drag to paint the ground. Water can't go under roads or buildings. |
 | 🏠 🏪 🏥 🗼 ✈️ … | Opens that group's buildings in one row (swipe sideways for more). Tap one (it appears in the middle) or drag it up onto the map. |
 | 🌳 Decoration | Works like Plot: pick one, then tap or drag on the map to put them down. The menu stays open until you tap 🌳 again. |
+| ⚡ Disaster | 🏚️ Earthquake, 🌪️ Tornado or 🌊 Tsunami ruins buildings. While it lasts, the build bar is locked and buildings can't be picked up (looking around and zooming still work). |
+| 🔧 Repair | Fixes every ruined building. |
 | 🚜 Remove | Tap or drag over roads and buildings. Tap Remove again to go back to Move. |
 
 Tapping the button of the menu that is open closes it and goes back to ✋ Move. The Plot menu also stays open
@@ -51,6 +53,16 @@ when it is not (a building you were moving goes back). With ✋ Move, tap a buil
 
 Buildings don't need roads. You can build on grass and sand, but not on water. Cities save themselves in the
 browser a moment after every change, once a minute, and when you leave the city or the app.
+
+Disasters (one at a time):
+- 🏚️ Earthquake: the screen shakes, cracks open in the ground, and a third to a half of the buildings fall in.
+- 🌪️ Tornado: comes in from outside the city, wanders around it for a while, ruins every building it touches
+  and sucks up people and cars, then leaves.
+- 🌊 Tsunami: one huge wave from the side with the most sea. It ruins buildings in its way and gets smaller
+  over land, stopping after about 30 squares.
+
+A ruined building keeps its place but stops working (no people, patrols, helicopters, planes, ships or fires)
+until 🔧 Repair. Ruins can't be moved, but 🚜 Remove clears them. Repair also closes the cracks.
 
 What moves on its own:
 - People walk out of doors, use sidewalks (or cut across grass), and walk into other buildings.
@@ -82,6 +94,6 @@ in the build bar.
 | `src/data/art.js` | Art file counts and sprite-sheet frame sizes. |
 | `src/constants.js` | Square size, map size, zoom levels, speeds, lane offsets. |
 | `src/world/` | Map generation, world state, ground and road drawing, building drawing, effects. |
-| `src/agents/` | People, cars, patrols, fire trucks, helicopters and fires, planes, ships, path finding. |
+| `src/agents/` | People, cars, patrols, fire trucks, helicopters and fires, planes, ships, disasters, path finding. |
 | `src/input/Controls.js` | Touch and mouse: tools, pan, pinch-zoom. |
-| `src/art/` | Pixel rasterizer and the code-drawn art (grass, sand, water, roads, people, cars, planes). |
+| `src/art/` | Pixel rasterizer and the code-drawn art (grass, sand, water, roads, people, cars, planes, ruined buildings). |

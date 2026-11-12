@@ -29,6 +29,15 @@ export class World {
     (this.listeners[ev] ||= []).push(fn);
   }
 
+  // For things that only care whether a building is there and working: added(b) when it is built or
+  // repaired, removed(b) when it is taken away or ruined.
+  onBuilding(added, removed) {
+    this.on('building-added', (b, silent) => !b.ruined && added(b, silent));
+    this.on('building-repaired', (b) => added(b, true));
+    this.on('building-removed', (b, silent) => !b.ruined && removed(b, silent));
+    this.on('building-ruined', (b, silent) => removed(b, silent));
+  }
+
   emit(ev, ...args) {
     for (const fn of this.listeners[ev] || []) fn(...args);
   }
@@ -205,6 +214,33 @@ export class World {
     return true;
   }
 
+  // ---------- disasters ----------
+
+  // A ruined building keeps its squares but stops working (no people, cars, helicopters, planes, ships).
+  ruinBuilding(b, { silent = false } = {}) {
+    if (!b || b.ruined || !this.buildings.has(b.id)) return false;
+    b.ruined = true;
+    this.emit('building-ruined', b, silent);
+    this.changed();
+    return true;
+  }
+
+  ruinedCount() {
+    let n = 0;
+    for (const b of this.buildings.values()) if (b.ruined) n++;
+    return n;
+  }
+
+  repairAll() {
+    const list = [...this.buildings.values()].filter((b) => b.ruined);
+    for (const b of list) {
+      b.ruined = false;
+      this.emit('building-repaired', b);
+    }
+    if (list.length) this.changed();
+    return list.length;
+  }
+
   // Door (or garage) of a building in map coordinates.
   // tile: the building square, outside: the square in front of it, point: the doorway itself.
   entrance(b, which = 'door') {
@@ -240,8 +276,10 @@ export class World {
       ground: this.painted ? this.ground.join('') : undefined,
       roads,
       trees: [...this.clearedTrees],
-      // [type, x, y, rot, w, d]: the size is kept so a building that got bigger in a new version can be dropped
-      buildings: [...this.buildings.values()].map((b) => [b.type, b.x, b.y, b.rot, b.w, b.d]),
+      // [type, x, y, rot, w, d, ruined]: the size is kept so a building that got bigger in a new version can be dropped
+      buildings: [...this.buildings.values()].map((b) => (b.ruined
+        ? [b.type, b.x, b.y, b.rot, b.w, b.d, 1]
+        : [b.type, b.x, b.y, b.rot, b.w, b.d])),
     };
   }
 

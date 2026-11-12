@@ -12,11 +12,11 @@ export class Airports {
     this.world = world;
     this.ports = new Map();
     this.variants = scene.registry.get('variants').plane;
-    world.on('building-added', (b) => {
+    // a ruined building counts as gone until it is repaired
+    world.onBuilding((b) => {
       if (!b.def.airport) return;
       this.ports.set(b.id, { b, A: b.def.airport, planes: [], busy: null, next: scene.time.now + 2500 });
-    });
-    world.on('building-removed', (b) => {
+    }, (b) => {
       const port = this.ports.get(b.id);
       if (!port) return;
       for (const p of port.planes) this.remove(p);

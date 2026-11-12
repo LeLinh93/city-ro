@@ -33,6 +33,7 @@ export class People {
   spawnTick() {
     if (this.list.length >= MAX_PEOPLE) return;
     for (const b of this.world.buildings.values()) {
+      if (b.ruined) continue;
       const rate = b.def.people || 0;
       if (Math.random() < rate / 60) this.spawn(b);
     }
@@ -47,7 +48,7 @@ export class People {
     const cands = [];
     let total = 0;
     for (const b of this.world.buildings.values()) {
-      if (b === from || !b.def.door) continue;
+      if (b === from || !b.def.door || b.ruined) continue;
       if (Math.abs(b.x - from.x) + Math.abs(b.y - from.y) > 45) continue;
       total += b.def.attract || 1;
       cands.push(b);
@@ -104,6 +105,14 @@ export class People {
     const frame = f.row * p.perRow + (Math.floor(m.dist * 7) % p.perRow);
     p.sprite.setPosition(Math.round(pos.x), Math.round(pos.y)).setDepth(m.px + m.py).setFlipX(f.flip);
     if (p.sprite.frame.name !== frame) p.sprite.setFrame(frame);
+  }
+
+  // Hand a person over to something else (a tornado, a wave): they leave the list without fading out.
+  take(p) {
+    const k = this.list.indexOf(p);
+    if (k < 0 || p.leaving) return null;
+    this.list.splice(k, 1);
+    return p.sprite;
   }
 
   leave(p, n) {
