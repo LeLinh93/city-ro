@@ -2,6 +2,7 @@ import { DEPTH, GROUND } from '../constants.js';
 import { toWorld, sideFromDir } from '../iso.js';
 import { pick, rand } from '../rng.js';
 import { KAIJU, KAIJU_FRAMES as F } from '../data/kaiju.js';
+import { assetUrl } from '../scenes/BootScene.js';
 import { healthBar } from './Military.js';
 
 // The kaiju: one at a time. It comes out of the sea at a beach (or in from the edge of the map if there is no
@@ -25,7 +26,6 @@ const BEAM_FIRE = 6;
 const PULSE_EVERY = 20000; // ms between energy rings
 const PULSE_MS = 900; // how long the ring takes to spread
 const PULSE_SIZE = 8; // squares: vehicles in this square round it are destroyed
-const ROOT = 'assets/';
 
 // grid direction -> [view drawn, mirrored?]
 const VIEW = { sw: ['sw', false], se: ['sw', true], ne: ['ne', false], nw: ['ne', true] };
@@ -136,7 +136,10 @@ export class Kaiju {
       return;
     }
     const L = scene.load;
-    for (const view of ['sw', 'ne']) if (!scene.textures.exists(`kaiju_${view}`)) L.image(`kaiju_${view}`, `${ROOT}disaster/kaiju_${view}.png`);
+    for (const view of ['sw', 'ne']) {
+      const url = assetUrl(`assets/disaster/kaiju_${view}.png`);
+      if (url && !scene.textures.exists(`kaiju_${view}`)) L.image(`kaiju_${view}`, url);
+    }
     L.once('complete', () => {
       for (const view of ['sw', 'ne']) this.makeFrames(view);
       done();

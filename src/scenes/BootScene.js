@@ -10,11 +10,15 @@ import {
 // Every PNG in the project's assets/ folder, found at build time (and live while `npm run dev` runs).
 const FILES = import.meta.glob('../../assets/**/*.png', { eager: true, query: '?url', import: 'default' });
 const BASE = 'assets/';
+
+// The URL of a file in assets/ (its path from the project folder), or undefined if there is no such file.
+// Built files get new names, so pictures loaded later (not at boot) must be looked up here too.
+export const assetUrl = (path) => FILES[`../../${path}`];
 const EDGE_PARTS = ['ne', 'se', 'sw', 'nw', 'n', 'e', 's', 'w'];
 
 // Only ask the loader for files that exist; everything else gets placeholder art.
 function wrapLoader(L) {
-  const url = (path) => FILES[`../../${path}`];
+  const url = assetUrl;
   return {
     image: (key, path) => url(path) && L.image(key, url(path)),
     spritesheet: (key, path, cfg) => url(path) && L.spritesheet(key, url(path), cfg),
