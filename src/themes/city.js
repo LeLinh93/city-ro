@@ -57,6 +57,8 @@ export const CITY = {
     carshowroom: 'Car showroom',
     noodleshop: 'Noodle shop',
     carpark: 'Car park',
+    oilrefinery: 'Oil refinery',
+    gasstation: 'Gas station',
   },
 
   // Extra settings for single buildings, by file name (without the size).
@@ -154,7 +156,14 @@ export const CITY = {
     // ships: several ships take turns at the berth and sail around the sea
     militarydock: { nearWater: true, dock: { ships: ['destroyer', 'aircraftcarrier'] }, lights: false },
     dockpassenger: { nearWater: true, dock: { ship: 'cruiseship' }, yard: { every: 2 } },
-    dockshipment: { nearWater: true, dock: { ship: 'containership' }, yard: { every: 2 } },
+    dockshipment: {
+      nearWater: true, dock: { ships: ['containership', 'oiltanker'] }, yard: { every: 2 },
+      patrol: { vehicle: 'containertruck', count: 1, rest: [8000, 18000], speed: 0.8 },
+    },
+    oilrefinery: { patrol: { vehicle: 'tanklorry', count: 1, rest: [8000, 18000], speed: 0.8 } },
+    // fuel: cars driving past now and then pull in, stop at a pump for a few seconds and drive on (src/agents/Traffic.js).
+    //       spots = where they stop, in squares from the building's top corner
+    gasstation: { fuel: { spots: [[1.2, 1.75], [1.75, 0.8]] }, lights: 'ground' },
     // the courtyard lit at night, and the glass pyramid glowing (squares; see src/art/floodlight.js)
     louvre: {
       inside: {

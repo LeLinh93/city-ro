@@ -44,6 +44,10 @@ export const VEHICLES = {
   bomber: { sheet: 'bomber-sheet.png', width: 240, ground: 'center' },
   destroyer: { sheet: 'destroyer-sheet.png', width: 320 },
   aircraftcarrier: { sheet: 'aircraftcarrier-sheet.png', width: 440 },
+  // oil and shipping: the refinery's tank lorry, the container dock's trucks and its oil tanker
+  tanklorry: { sheet: 'tanklorry-sheet.png', width: 80 },
+  containertruck: { sheet: 'containertruck-sheet.png', width: 80 },
+  oiltanker: { sheet: 'oiltanker-sheet.png', width: 352 },
   // the UFO (a disaster): 6 squares wide
   ufo: { sheet: 'disaster/mothership-sheet.png', width: 768, ground: 'center' },
 };

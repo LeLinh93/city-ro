@@ -8,10 +8,13 @@ import { CARS } from '../data/vehicles.js';
 import { vehicleSprite, faceVehicle, hasVehicle } from './vehicleArt.js';
 
 const MAX_CARS = 30;
+const FUEL_CHANCE = 0.35; // how often a car driving past a gas station pulls in
+const FUEL_MS = [3500, 7000]; // how long it stays at the pump
 
 // Cars wander the road network on the right-hand lane.
 // Patrol cars (police, ambulance) leave their building, drive around, and come back.
 // Fire trucks are sent to a burning building, wait there, and drive back (see Services).
+// Cars driving past a gas station now and then pull in, stop at a pump and drive on.
 export class Traffic {
   constructor(scene, world, pathfinder) {
     this.scene = scene;
@@ -19,10 +22,17 @@ export class Traffic {
     this.pf = pathfinder;
     this.cars = [];
     this.stations = new Map();
+    this.fuel = new Map(); // gas stations: building id -> { b, used: [car or null per pump spot] }
     this.spawnTimer = 0;
     this.variants = scene.registry.get('variants').car; // code-drawn stand-ins
     this.carIds = CARS.filter((id) => hasVehicle(scene, id));
     // a ruined building counts as gone until it is repaired
+    world.onBuilding((b) => {
+      if (b.def.fuel) this.fuel.set(b.id, { b, used: b.def.fuel.spots.map(() => null) });
+    }, (b) => {
+      this.fuel.delete(b.id);
+      for (const c of this.cars) if (c.fuel?.st.b === b) this.despawn(c);
+    });
     world.onBuilding((b) => {
       const p = b.def.patrol;
       if (!p) return;
@@ -60,11 +70,21 @@ export class Traffic {
 
     for (const c of this.cars) {
       if (c.leaving || c.mode === 'wait') continue;
+      if (c.mode === 'fueling') {
+        if (time > c.until) this.fuelOut(c);
+        continue;
+      }
       if (this.blocked(c, dt)) continue;
       c.mover.step(dt);
       if (c.mover.done) {
         // a fire truck at the fire, or a tank at the end of its route (see Ufo.js): stays until called back
         if (c.mode === 'arrived' || c.mode === 'offroad') c.mode = 'wait';
+        else if (c.mode === 'fuel') {
+          // at the pump
+          c.mode = 'fueling';
+          c.until = time + rand(...FUEL_MS);
+          c.mover.done = false;
+        }
         else this.despawn(c);
       }
     }
@@ -235,9 +255,11 @@ export class Traffic {
   // Called when a car reaches the middle of a square: decide where to go next.
   next(car) {
     const w = this.world;
+    if (car.mode === 'fuelOut') this.fuelDone(car);
     const [i, j] = car.cur;
-    if (car.mode === 'enter' || car.mode === 'field' || car.mode === 'offroad') return false;
+    if (car.mode === 'fuel' || car.mode === 'enter' || car.mode === 'field' || car.mode === 'offroad') return false;
     if (!w.isRoad(i, j)) return false;
+    if (car.kind === 'civ' && !car.mode && this.fuel.size && this.fuelIn(car, i, j)) return true;
 
     if (car.mode === 'respond') {
       if (car.path?.length && w.isRoad(...car.path[0])) {
@@ -286,6 +308,49 @@ export class Traffic {
     return true;
   }
 
+  // ---------- gas stations ----------
+
+  // A car on the road square in front of a gas station: now and then it pulls in to a free pump.
+  fuelIn(car, i, j) {
+    if (car.fuelled && this.scene.time.now - car.fuelled < 60000) return false; // it just filled up
+    for (const st of this.fuel.values()) {
+      const g = this.home(st.b);
+      if (!g || g.outside[0] !== i || g.outside[1] !== j) continue;
+      const k = st.used.indexOf(null);
+      if (k < 0 || Math.random() > FUEL_CHANCE) return false;
+      const b = st.b;
+      const [sx, sy] = b.def.fuel.spots[k];
+      // pictures of turned buildings are mirrored, and so are their squares
+      const spot = b.rot ? { x: b.x + sy, y: b.y + sx } : { x: b.x + sx, y: b.y + sy };
+      st.used[k] = car;
+      car.fuel = { st, k, g };
+      car.mode = 'fuel';
+      car.mover.push(g.point.x, g.point.y, false);
+      car.mover.push(spot.x, spot.y, false);
+      return true;
+    }
+    return false;
+  }
+
+  // Filled up: back out to the road it came from.
+  fuelOut(car) {
+    const { g } = car.fuel;
+    car.mode = 'fuelOut';
+    car.mover.push(g.point.x, g.point.y, false);
+    car.mover.push(g.outside[0] + 0.5, g.outside[1] + 0.5, true);
+  }
+
+  // Back on the road: the pump is free again and it drives on, away from the station.
+  fuelDone(car) {
+    const { st, k, g } = car.fuel;
+    if (st.used[k] === car) st.used[k] = null;
+    car.fuel = null;
+    car.mode = undefined;
+    car.fuelled = this.scene.time.now;
+    car.cur = g.outside;
+    car.heading = g.dir;
+  }
+
   go(car, [a, b]) {
     const [i, j] = car.cur;
     car.heading = [a - i, b - j];
@@ -297,7 +362,10 @@ export class Traffic {
     const m = car.mover;
     const pos = toWorld(m.px, m.py);
     faceVehicle(car.v, m.dir[0], m.dir[1], time);
-    const depth = car.field ? this.fieldDepth(car, m.px, m.py) : m.px + m.py + 0.05;
+    let depth = car.field ? this.fieldDepth(car, m.px, m.py) : m.px + m.py + 0.05;
+    // in a gas station: in front of the station's own picture, behind anything built in front of it
+    const fb = car.fuel?.st.b;
+    if (fb && this.world.buildingAt(Math.floor(m.px), Math.floor(m.py)) === fb) depth = fb.x + fb.y + fb.w + fb.d - 0.45;
     car.sprite.setPosition(Math.round(pos.x), Math.round(pos.y)).setDepth(depth);
   }
 
@@ -326,6 +394,7 @@ export class Traffic {
   take(c) {
     if (c.leaving) return null;
     c.leaving = true;
+    if (c.fuel?.st.used[c.fuel.k] === c) c.fuel.st.used[c.fuel.k] = null;
     c.gone = true;
     const st = c.slot !== undefined && this.stations.get(c.station);
     if (st && st.slots[c.slot]?.car === c) {
@@ -338,6 +407,7 @@ export class Traffic {
   despawn(c) {
     if (c.leaving) return;
     c.leaving = true;
+    if (c.fuel?.st.used[c.fuel.k] === c) c.fuel.st.used[c.fuel.k] = null;
     const st = c.slot !== undefined && this.stations.get(c.station);
     if (st && st.slots[c.slot]?.car === c) {
       st.slots[c.slot].car = null;
