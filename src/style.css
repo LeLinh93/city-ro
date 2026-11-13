@@ -121,6 +121,40 @@ button {
 
 /* ---------- day / night clock (top left) ---------- */
 
+#city-name {
+  position: fixed;
+  top: calc(76px + env(safe-area-inset-top));
+  left: calc(12px + env(safe-area-inset-left));
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 45vw;
+  height: 40px;
+  padding: 0 12px 0 16px;
+  border-radius: 20px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  box-shadow: var(--shadow);
+  color: inherit;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+#city-name:active {
+  transform: scale(0.96);
+}
+
+.city-name-text {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.city-name-pen {
+  font-size: 14px;
+}
+
 #clock {
   position: fixed;
   top: calc(12px + env(safe-area-inset-top));

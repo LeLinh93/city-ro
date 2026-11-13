@@ -90,13 +90,14 @@ export function updateCity(id, fields) {
 
 const FILE_APP = 'city-builder';
 
-// Everything about one city, ready to be written to a file.
+// Everything about one city, ready to be written to a file. Not its picture in the list: that is made again
+// the next time the city is closed (main.js), and it would make the file much bigger.
 export function exportCity(id) {
   const city = index().find((c) => c.id === id);
   const data = loadCity(id);
   if (!city || !data) return null;
-  const { name, theme, created, updated, thumb } = city;
-  return { app: FILE_APP, format: 1, city: { name, theme, created, updated, thumb }, data };
+  const { name, theme, created, updated } = city;
+  return { app: FILE_APP, format: 1, city: { name, theme, created, updated }, data };
 }
 
 // Add a city from a save file's contents (text). Returns the new city, or throws an Error with a message
@@ -126,7 +127,7 @@ export function importCity(text) {
     theme: THEMES[info.theme] ? info.theme : DEFAULT_THEME,
     created: info.created || now,
     updated: now,
-    thumb: typeof info.thumb === 'string' && info.thumb.startsWith('data:image/') ? info.thumb : undefined,
+    thumb: typeof info.thumb === 'string' // (files saved before pictures were left out still have one) && info.thumb.startsWith('data:image/') ? info.thumb : undefined,
   };
   if (!write(CITY_KEY + city.id, data)) throw new Error('There is no room left to store this city.');
   list.push(city);

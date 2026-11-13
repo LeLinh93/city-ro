@@ -30,8 +30,10 @@ with its own icon. After you upload a new build, the app updates itself the next
 The game opens on the menu: tap **＋** for a new city, or tap a saved city to keep building. 🗑️ deletes a city.
 ⬇️ on a city saves it to a file (on the iPad home-screen app the share sheet opens: pick "Save to Files"),
 and 📂 next to ＋ loads a city from a file on the device as a new city. Use them to keep a copy or to move a
-city to another device, since cities are otherwise stored only in this browser.
-In a city, 🏠 (top right) saves and goes back to the menu.
+city to another device, since cities are otherwise stored only in this browser. The file has no picture of
+the city: a city loaded from a file shows 🏙️ in the menu until it is opened and closed again.
+In a city, 🏠 (top right) saves and goes back to the menu. The city's name shows under the clock; tap it to
+give the city a new name.
 
 The clock at the top left shows the time of day. A whole day takes 6 minutes: about 3½ minutes of day, a
 short orange evening, 1½ minutes of night and a pink morning. At night the city turns dark blue, building walls
@@ -88,6 +90,24 @@ Disasters (one at a time):
   whatever is there, the ground shakes, smoke pours out and fire balls fly out for about 13 seconds. Every
   building in the 25 × 25 squares around it is hit by a fire ball and catches fire (fire stations come, as
   for the meteor). Then the volcano sinks back into the ground.
+
+🧟 Zombies (in the Disaster menu, but they don't lock the build bar): each tap brings up to 1000 green zombies
+out of the ground in the middle of the city, never more than 1000 on the map. They shuffle to the nearest
+building and break it: each zombie next to it takes 1 HP a second, and a building has 20 HP for every square
+it covers (1×1 = 20, 2×2 = 80), so it is ruined at 0. Decorations are left alone. People they catch turn into
+zombies, and they go after tanks close by (a tank has 20 HP). Every zombie dies from one hit. The army fights
+them: a bullet kills one zombie, a tank shell everything in a 1×1 square, a rocket 2×2 and a bomb 3×3.
+Tap a zombie and then 🗑️ to take them all away. (`src/agents/Zombies.js`)
+
+🪖 Soldiers: while there are zombies or a kaiju (not the UFO), every barrack sends out 5 soldiers in a military
+truck. It drives (along roads and over open land, like a tank) to about 4 squares from the nearest zombie or the
+kaiju, lets them out and drives home; if the kaiju destroys the truck on the way, the soldiers in it are lost. A
+barrack with no road near it sends them on foot. Soldiers run at the nearest zombie (or the kaiju) and shoot
+once it is 2 squares away: 10 shots a second, 0.1 damage each.
+Zombies turn soldiers they catch into zombies; the kaiju's stomp, beam and energy ring kill them. Every 10 s a
+barrack sends a truck with new ones for those who died, 5 out at a time. When the fight is over they walk home. Their picture
+is `assets/people/soldier.png` (a sheet like a person's: 4 frames, 2 rows); without it a code-drawn soldier is
+used. (`src/agents/Soldiers.js`)
 
 A ruined building keeps its place but stops working (no people, patrols, helicopters, planes, ships or fires)
 until 🔧 Repair. Ruins can't be moved, but 🚜 Remove clears them.

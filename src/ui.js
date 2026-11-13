@@ -1,5 +1,6 @@
 // The in-game buttons: build bar, building menus, ✔ ✖ 🔄 while placing, zoom and home.
 import { BUILDINGS, MENUS } from './themes/catalog.js';
+import { updateCity } from './saves.js';
 
 const HINTS = {
   hand: 'Drag to move around. Tap a building to move it. Pinch with two fingers to zoom.',
@@ -23,6 +24,8 @@ const HINTS = {
   ufoBusy: 'There is already a UFO. Tap it to take it away.',
   kaiju: '🦖 A kaiju is coming! The army is on its way. Tap the kaiju to take it away.',
   kaijuBusy: 'There is already a kaiju. Tap it to take it away.',
+  zombies: '🧟 Zombies! They break buildings, tanks and bite people. The army is on its way. Tap a zombie to take them all away.',
+  zombiesBusy: '🧟 That is as many zombies as the city can hold (1000). Tap a zombie to take them all away.',
   brush: 'Brush: tap or drag to do one square at a time.',
   area: 'Area: drag a rectangle on the map. It is filled when you let go.',
   areaDeco: 'Area: drag a rectangle on the map. Every free spot in it is filled when you let go.',
@@ -51,6 +54,7 @@ const DISASTERS = [
   { action: 'volcano', name: 'Volcano', icon: '🌋' },
   { action: 'ufo', name: 'UFO', icon: '🛸' },
   { action: 'kaiju', name: 'Kaiju', icon: '🦖' },
+  { action: 'zombies', name: 'Zombies', icon: '🧟' },
 ];
 
 const isPaint = (id) => typeof id === 'string' && id.startsWith('paint:');
@@ -82,6 +86,9 @@ export class UI {
     document.getElementById('zoom-out').addEventListener('click', () => this.scene?.controls.zoomStep(-1));
     document.getElementById('home').addEventListener('click', () => onHome());
     // the day/night clock: tap to switch between auto, always day and always night
+    // the city's name under the clock: tap it to give the city a new name
+    this.cityName = document.getElementById('city-name');
+    this.cityName.addEventListener('click', () => this.rename());
     this.clock = document.getElementById('clock');
     this.clock.addEventListener('click', () => {
       const night = this.scene?.dayNight;
@@ -107,7 +114,8 @@ export class UI {
     this.foeDel = document.getElementById('foe-del');
     this.foeDel.addEventListener('click', () => {
       const foe = this.foe;
-      if (foe?.remove()) this.showHint(foe === this.scene?.ufo ? '🛸 The UFO is gone.' : '🦖 The kaiju is gone.');
+      const gone = foe === this.scene?.ufo ? '🛸 The UFO is gone.' : foe === this.scene?.kaiju ? '🦖 The kaiju is gone.' : '🧟 The zombies are gone.';
+      if (foe?.remove()) this.showHint(gone);
       this.hideFoeDel();
     });
     this.flip = document.getElementById('place-flip');
@@ -138,11 +146,13 @@ export class UI {
 
   attach(scene) {
     this.scene = scene;
+    this.showName();
     scene.events.off('picked-up'); // the scene object is reused for every city
     scene.events.off('disaster');
     scene.events.off('foe-tap');
     scene.events.off('ufo');
     scene.events.off('kaiju');
+    scene.events.off('zombies');
     scene.events.on('foe-tap', (foe) => {
       this.foe = foe;
       this.foeDel.classList.toggle('hidden', !foe);
@@ -151,6 +161,11 @@ export class UI {
       if (on) return;
       if (this.foe === scene.ufo) this.hideFoeDel();
       if (shot) this.showHint('💥 The UFO was shot down!');
+    });
+    scene.events.on('zombies', (on, defeated) => {
+      if (on) return;
+      if (this.foe === scene.zombies) this.hideFoeDel();
+      if (defeated) this.showHint('💥 The army stopped the zombies!');
     });
     scene.events.on('kaiju', (on, defeated) => {
       if (on) return;
@@ -342,6 +357,22 @@ export class UI {
     if (on) this.select('hand', false);
   }
 
+  showName() {
+    this.cityName.querySelector('.city-name-text').textContent = this.scene?.city?.name || '';
+  }
+
+  rename() {
+    const city = this.scene?.city;
+    if (!city) return;
+    const typed = window.prompt("The city's name:", city.name);
+    const name = typed?.trim().slice(0, 40);
+    if (!name || name === city.name) return;
+    city.name = name;
+    updateCity(city.id, { name });
+    this.showName();
+    this.showHint(`✏️ The city is now called ${name}.`);
+  }
+
   hideFoeDel() {
     this.foe = null;
     this.foeDel.classList.add('hidden');
@@ -355,8 +386,8 @@ export class UI {
       this.showHint(def.mode === 'brush' ? HINTS.brush : this.openMenu === 'plot' ? HINTS.area : HINTS.areaDeco);
       return;
     }
-    if (def.action === 'ufo' || def.action === 'kaiju') {
-      // the UFO and the kaiju don't lock the build bar: they are not disasters that have to finish
+    if (def.action === 'ufo' || def.action === 'kaiju' || def.action === 'zombies') {
+      // the UFO, the kaiju and the zombies don't lock the build bar: they are not disasters that have to finish
       this.select('hand', false);
       this.showHint(this.scene[def.action].spawn() ? HINTS[def.action] : HINTS[`${def.action}Busy`]);
       return;

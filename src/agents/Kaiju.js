@@ -39,6 +39,7 @@ export class Kaiju {
     this.disasters = disasters;
     this.k = null;
     this.spread = { x: 90, y: 110 };
+    this.infantry = true; // soldiers come out of the barracks for it (Soldiers.js)
     this.g = scene.add.graphics().setDepth(DEPTH.AIR + 1900);
     this.shadow = scene.add.graphics().setDepth(DEPTH.SHADOW);
     military.add(this);
@@ -300,6 +301,7 @@ export class Kaiju {
     for (const b of [...w.buildings.values()]) {
       if (b.x < k.x + h && b.x + b.w > k.x - h && b.y < k.y + h && b.y + b.d > k.y - h) w.ruinBuilding(b);
     }
+    this.military.soldiers.killIn(k.x, k.y, h + 0.3);
     for (const t of this.disasters.near(k.x, k.y, h + 0.3)) {
       if (t.kind === 'car' && this.military.killIfTank(t.a, time)) continue;
       this.military.fade(this.disasters.take(t));
@@ -383,6 +385,7 @@ export class Kaiju {
       k.nextPulse = time + PULSE_EVERY;
       const h = PULSE_SIZE / 2;
       const inBox = (x, y) => Math.abs(x - k.x) <= h && Math.abs(y - k.y) <= h;
+      this.military.soldiers.killIn(k.x, k.y, h);
       for (const c of [...this.disasters.traffic.cars]) {
         if (c.leaving || !inBox(c.mover.px, c.mover.py)) continue;
         if (this.military.killIfTank(c, time)) continue;

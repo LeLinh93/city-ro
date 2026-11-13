@@ -4,7 +4,7 @@ import { THEMES, themeCatalog } from '../themes/catalog.js';
 import { VEHICLES } from '../data/vehicles.js';
 import {
   genGround, genEdge, genShore, genRoadCenter, genRoadArm,
-  genPerson, genCar, genPlane, genPuff, genDust, genShadow, genFlame, genDrop,
+  genPerson, genSoldier, genCar, genPlane, genPuff, genDust, genShadow, genFlame, genDrop,
 } from '../art/placeholders.js';
 
 // Every PNG in the project's assets/ folder, found at build time (and live while `npm run dev` runs).
@@ -67,6 +67,7 @@ export class BootScene extends Phaser.Scene {
     const sheet = (key, path, f) => L.spritesheet(key, path, { frameWidth: f.frameW, frameHeight: f.frameH });
     for (let i = 0; i < ART.personVariants; i++) sheet(`person_${i}`, `${BASE}people/person_${i}.png`, ART.person);
     for (let i = 0; i < ART.carVariants; i++) sheet(`car_${i}`, `${BASE}vehicles/car_${i}.png`, ART.car);
+    sheet('soldier', `${BASE}people/soldier.png`, ART.person);
     sheet('police_car', `${BASE}vehicles/police_car.png`, ART.car);
     // Vehicles cut from the sheets by `npm run art` (4 views side by side, see src/data/vehicles.js).
     for (const id of Object.keys(VEHICLES)) L.image(`veh:${id}`, `${BASE}vehicles/${id}.png`);
@@ -118,6 +119,7 @@ export class BootScene extends Phaser.Scene {
     for (const s of ['ne', 'se', 'sw', 'nw']) if (!has(`edge_curb_${s}`)) addPix(this, `edge_curb_${s}`, genShore('curb', s));
     if (!has('road_center')) addPix(this, 'road_center', genRoadCenter());
     for (const s of ['ne', 'se', 'sw', 'nw']) if (!has(`road_arm_${s}`)) addPix(this, `road_arm_${s}`, genRoadArm(s));
+    if (!has('soldier')) addPix(this, 'soldier', genSoldier(), 32, 48);
     if (!has('police_car')) addPix(this, 'police_car', genCar(0, true), 64, 48);
     if (!has('fx_smoke')) addPix(this, 'fx_smoke', genPuff());
     if (!has('fx_dust')) addPix(this, 'fx_dust', genDust());

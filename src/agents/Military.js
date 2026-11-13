@@ -2,8 +2,10 @@ import { DEPTH, SPEED } from '../constants.js';
 import { toWorld, toGrid } from '../iso.js';
 import { pick, rand } from '../rng.js';
 import { vehicleSprite, faceVehicle, hasVehicle, vehicleShadow, placeShadow } from './vehicleArt.js';
+import { Soldiers } from './Soldiers.js';
 
-// The military fights the monsters (the UFO, the kaiju): tanks from the military bases, planes and the
+// The military fights the monsters (the UFO, the kaiju, the zombies): soldiers from the barracks (Soldiers.js,
+// not for the UFO), tanks from the military bases, planes and the
 // helicopter from the military airport (and a jet from each aircraft carrier), rockets from the missile silos
 // and the warships. Every unit picks its own target when there is more than one monster.
 //
@@ -13,11 +15,15 @@ import { vehicleSprite, faceVehicle, hasVehicle, vehicleShadow, placeShadow } fr
 //   aim()          where shots go, in world px {x, y}
 //   spread         how far round that point shots land, px {x, y}
 //   hurt(dmg, t)   a hit
+// A crowd (the zombies, Zombies.js) also has:
+//   closest(x, y)  the point of it nearest to the square (x, y), where tanks drive to
+//   mark(kind)     where a shot goes: { pos() } in world px, given back to hurt(dmg, t, kind, mark)
 
 const RUIN_SIZE = 4; // squares: a beam's impact ruins the buildings in this square ...
 const FIRE_SIZE = 8; // ... and sets fire to those in this one
 const FIRE_BURN_OUT = 75000; // ms: a fire nobody puts out by then ruins its building
 const BLAST_MS = 550; // how long a rocket's explosion on a monster lasts
+const TANK_HP = 20; // zombies can break a tank (1 HP a second each)
 const NEW_TANK = 8000; // ms before a military base sends a new tank after one is destroyed
 const ALT = 320; // how high the planes fly, px
 
@@ -69,6 +75,7 @@ export class Military {
       lifespan: { min: 600, max: 1200 }, speed: { min: 5, max: 25 }, tint: 0xd8d8d8,
       scale: { start: 1, end: 3 }, alpha: { start: 0.6, end: 0 }, emitting: false,
     }).setDepth(DEPTH.AIR + 1999);
+    this.soldiers = new Soldiers(scene, world, this);
   }
 
   add(foe) {
@@ -84,7 +91,7 @@ export class Military {
     let best = null;
     let bd = Infinity;
     for (const f of this.live()) {
-      const g = f.ground();
+      const g = spot(f, x, y);
       const d = Math.hypot(g.x - x, g.y - y);
       if (d < bd) {
         bd = d;
@@ -100,6 +107,7 @@ export class Military {
     if (on) this.defend(time);
     else if (this.engaged) this.standDown();
     this.engaged = on;
+    this.soldiers.update(time, dt);
     this.stepSorties(time, dt);
     this.stepShots(time, dt);
     this.drawBlasts(time);
@@ -125,6 +133,7 @@ export class Military {
     const inside = (b, h) => b.x < at.x + h && b.x + b.w > at.x - h && b.y < at.y + h && b.y + b.d > at.y - h;
     for (const b of [...w.buildings.values()]) if (inside(b, ruin / 2)) w.ruinBuilding(b);
     for (const t of d.near(at.x, at.y, ruin / 2 + 0.3)) this.fade(d.take(t));
+    this.soldiers.killIn(at.x, at.y, ruin / 2 + 0.3);
     for (const b of w.buildings.values()) if (!b.ruined && inside(b, fire / 2)) this.services.ignite(b, time, FIRE_BURN_OUT);
     const p = toWorld(at.x, at.y);
     this.sparks.emitParticleAt(p.x, p.y, 30);
@@ -150,6 +159,29 @@ export class Military {
       out.push({ x: s.x, y: s.y - s.alt, ground: { x: g.fx, y: g.fy }, kill: () => this.killPlane(s, time) });
     }
     return out;
+  }
+
+  // Tanks out of their base, as { tank, x, y } in squares (the zombies go after them).
+  tanksOut() {
+    const out = [];
+    for (const t of this.tanks.values()) {
+      const car = t.car;
+      if (car && !car.gone && !car.leaving) out.push({ tank: t, x: car.mover.px, y: car.mover.py });
+    }
+    return out;
+  }
+
+  // A tank hit by a zombie: at 0 HP it blows up.
+  hurtTank(t, dmg, time) {
+    const car = t.car;
+    if (!car || car.gone || car.leaving) return;
+    t.hp -= dmg;
+    const p = toWorld(car.mover.px, car.mover.py);
+    this.sparks.emitParticleAt(p.x, p.y - 12, 3);
+    if (t.hp > 0) return;
+    this.sparks.emitParticleAt(p.x, p.y - 12, 24);
+    for (let k = 0; k < 5; k++) this.smoke.emitParticleAt(p.x + rand(-20, 20), p.y - 10 + rand(-10, 6), 1);
+    this.killTank(t, time);
   }
 
   // A tank destroyed: its base sends a new one a little later.
@@ -248,6 +280,7 @@ export class Military {
       t.next = time + 15000; // if it can't come out (no road) or is lost, try again later
       if (!t.car) return;
       t.car.mode = 'respond';
+      t.hp = TANK_HP;
       t.car.path = [];
       t.repath = 0;
     }
@@ -255,7 +288,7 @@ export class Military {
     const m = car.mover;
     const foe = this.nearest(m.px, m.py);
     if (!foe) return;
-    const g = foe.ground();
+    const g = spot(foe, m.px, m.py);
     const dist = Math.hypot(m.px - g.x, m.py - g.y);
     // every few seconds (once it has reached the end of its last route): a new route towards the monster
     if (time > t.repath && (car.mode === 'wait' || !m.queue.length)) {
@@ -279,12 +312,12 @@ export class Military {
     }
   }
 
-  // A tank's route from square `from` to within range of the point (x, y): over roads and open land
-  // (not through buildings or water), shortest first. Null if it can't get there.
-  tankRoute(from, x, y) {
+  // A tank's route from square `from` to within range of the point (x, y) (or `reach` squares of it): over roads
+  // and open land (not through buildings or water), shortest first. Null if it can't get there.
+  tankRoute(from, x, y, reach = TANK_RANGE * 0.6) {
     const w = this.world;
     const ok = (i, j) => w.inBounds(i, j) && !w.isWater(i, j) && !w.bldg[w.idx(i, j)];
-    const near = (i, j) => Math.hypot(i + 0.5 - x, j + 0.5 - y) <= TANK_RANGE * 0.6;
+    const near = (i, j) => Math.hypot(i + 0.5 - x, j + 0.5 - y) <= reach;
     const start = w.idx(...from);
     const prev = new Map([[start, -1]]);
     const list = [from];
@@ -451,9 +484,12 @@ export class Military {
     if (!foe) return;
     const S = SHOTS[kind];
     const sp = foe.spread;
+    // a crowd: the shot goes for one spot in it (see the top of this file)
+    const mark = foe.mark ? foe.mark(kind) : null;
+    if (foe.mark && !mark) return;
     this.shots.push({
-      kind, foe, x: from.x, y: from.y, speed: S.speed, t0: time, boost: air ? 0 : S.boost || 0, trail: [],
-      jitter: { x: rand(-sp.x, sp.x), y: rand(-sp.y, sp.y) },
+      kind, foe, mark, x: from.x, y: from.y, speed: S.speed, t0: time, boost: air ? 0 : S.boost || 0, trail: [],
+      jitter: mark ? { x: 0, y: 0 } : { x: rand(-sp.x, sp.x), y: rand(-sp.y, sp.y) },
     });
   }
 
@@ -462,7 +498,7 @@ export class Military {
     this.shots = this.shots.filter((s) => {
       if (!s.foe.alive) return false; // its target is gone
       const S = SHOTS[s.kind];
-      const p = s.foe.aim();
+      const p = s.mark ? s.mark.pos() : s.foe.aim();
       const tx = p.x + s.jitter.x;
       const ty = p.y + s.jitter.y;
       if (S.accel) s.speed += S.accel * dt;
@@ -481,7 +517,7 @@ export class Military {
           this.sparks.emitParticleAt(tx, ty, s.kind === 'bullet' ? 2 : 10);
           if (s.kind !== 'bullet') this.smoke.emitParticleAt(tx, ty, 2);
         }
-        s.foe.hurt(S.dmg, time);
+        s.foe.hurt(S.dmg, time, s.kind, s.mark);
         return false;
       }
       s.x += (dx / d) * step;
@@ -571,6 +607,11 @@ export class Military {
       return true;
     });
   }
+}
+
+// Where a unit near the square (x, y) goes for a monster: the nearest point of a crowd, else its middle.
+function spot(f, x, y) {
+  return f.closest ? f.closest(x, y) : f.ground();
 }
 
 // The health bar above a monster.

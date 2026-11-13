@@ -265,6 +265,54 @@ export function genPerson(variant) {
   return pix;
 }
 
+// A soldier (they come out of barracks to fight zombies and the kaiju): like a person, with an olive uniform,
+// a helmet and a rifle. Same frames as genPerson: 4 walking frames, row 0 faces down-right, row 1 up-right.
+export function genSoldier() {
+  const fw = 32;
+  const fh = 48;
+  const uniform = 0x6b7a45;
+  const pants = 0x4f5a34;
+  const helmet = 0x3f4a2a;
+  const skin = 0xe8bf98;
+  const gun = 0x222222;
+  const pix = new Pix(fw * 4, fh * 2);
+  for (let row = 0; row < 2; row++) {
+    for (let f = 0; f < 4; f++) {
+      const ox = f * fw + 16;
+      const oy = row * fh;
+      const step = f === 1 ? 1 : f === 3 ? -1 : 0;
+      pix.rect(ox - 3, oy + 40 + (step > 0 ? -1 : 0), 2, 8 - (step > 0 ? 1 : 0), pants);
+      pix.rect(ox + 1, oy + 40 + (step < 0 ? -1 : 0), 2, 8 - (step < 0 ? 1 : 0), pants);
+      pix.rect(ox - 3, oy + 46, 2, 2, 0x2a2a2a); // boots
+      pix.rect(ox + 1, oy + 46, 2, 2, 0x2a2a2a);
+      pix.rect(ox - 4, oy + 31, 8, 10, uniform);
+      pix.rect(ox + 2, oy + 31, 2, 10, shade(uniform, -0.25));
+      pix.rect(ox - 4, oy + 37, 8, 1, 0x3a3a24); // belt
+      pix.rect(ox - 3, oy + 24, 7, 7, skin);
+      if (row === 0) {
+        pix.set(ox - 1, oy + 27, 0x222222);
+        pix.set(ox + 2, oy + 27, 0x222222);
+        // the rifle held across the body, pointing forward (right)
+        pix.rect(ox - 2, oy + 35, 12, 2, gun);
+        pix.rect(ox + 3, oy + 35, 2, 3, gun);
+        pix.rect(ox - 6, oy + 33, 2, 4, uniform); // arms round it
+        pix.rect(ox + 4, oy + 33, 2, 3, shade(uniform, -0.25));
+      } else {
+        // from behind: the rifle over the right shoulder, pointing up-right
+        pix.rect(ox + 3, oy + 31, 2, 6, gun);
+        pix.rect(ox + 5, oy + 29, 2, 3, gun);
+        pix.rect(ox - 6, oy + 32 + step, 2, 7, uniform);
+        pix.rect(ox + 4, oy + 32 - step, 2, 6, shade(uniform, -0.25));
+      }
+      // helmet: a bit wider than the head, over its top
+      pix.rect(ox - 4, oy + 22, 9, 3, helmet);
+      pix.rect(ox - 3, oy + 21, 7, 1, helmet);
+      if (row === 1) pix.rect(ox - 3, oy + 25, 7, 3, helmet);
+    }
+  }
+  return pix;
+}
+
 // ---------- vehicles ----------
 
 // Boxes are given in a "heading frame": a = along the vehicle (front is +a), c = across.

@@ -196,6 +196,10 @@ export class DayNight {
       return;
     }
     if (o.glow || !o.setTint || o.tintFill || o.depth >= DEPTH.GHOST) return;
+    if (o.baseTint !== undefined) {
+      o.setTint(mulColor(o.baseTint, this.tint)); // a coloured thing (the green zombies), also darker at night
+      return;
+    }
     if (this.tint === 0xffffff) {
       if (o.isTinted) o.clearTint();
     } else o.setTint(this.tint);

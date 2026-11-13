@@ -17,6 +17,7 @@ import { Disasters } from '../agents/Disasters.js';
 import { Controls } from '../input/Controls.js';
 import { Ufo } from '../agents/Ufo.js';
 import { Kaiju } from '../agents/Kaiju.js';
+import { Zombies } from '../agents/Zombies.js';
 import { Military } from '../agents/Military.js';
 import { loadCity, saveCity } from '../saves.js';
 import { GROUND, DEPTH } from '../constants.js';
@@ -63,6 +64,7 @@ export class GameScene extends Phaser.Scene {
     this.military = new Military(this, world, { services: this.services, traffic: this.traffic, ships: this.ships, disasters: this.disasters });
     this.ufo = new Ufo(this, world, { military: this.military, disasters: this.disasters });
     this.kaiju = new Kaiju(this, world, { military: this.military, disasters: this.disasters });
+    this.zombies = new Zombies(this, world, { people: this.people, military: this.military, disasters: this.disasters });
     this.ghost = new Ghost(this);
 
     world.on('building-added', (b, silent) => {
@@ -133,6 +135,7 @@ export class GameScene extends Phaser.Scene {
     this.disasters.update(time, dt);
     this.ufo.update(time, dt);
     this.kaiju.update(time, dt);
+    this.zombies.update(time, dt);
     this.military.update(time, dt);
   }
 
@@ -311,8 +314,8 @@ export class GameScene extends Phaser.Scene {
   // A quick tap with the Move tool: pick up the building under the finger to move it.
   handTap(sq) {
     if (this.disasters.tap(sq)) return; // aiming the meteor
-    // a tap on the UFO or the kaiju shows its 🗑️ button; a tap anywhere else hides it
-    const foe = [this.ufo, this.kaiju].find((f) => f.hit(this.pointerWorld)) || null;
+    // a tap on the UFO, the kaiju or a zombie shows its 🗑️ button; a tap anywhere else hides it
+    const foe = [this.ufo, this.kaiju, this.zombies].find((f) => f.hit(this.pointerWorld)) || null;
     this.events.emit('foe-tap', foe);
     if (foe) return;
     if (this.tool !== 'hand' || this.pending) return;
