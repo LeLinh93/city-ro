@@ -50,6 +50,13 @@ export const CITY = {
     militarycommand: 'Military command',
     missilesilo: 'Missile silo',
     townhall: 'Town hall',
+    basketballcourt: 'Basketball court',
+    futurelab: 'Future lab',
+    nasa: 'Space center',
+    rocketpad: 'Rocket pad',
+    carshowroom: 'Car showroom',
+    noodleshop: 'Noodle shop',
+    carpark: 'Car park',
   },
 
   // Extra settings for single buildings, by file name (without the size).
@@ -157,6 +164,13 @@ export const CITY = {
         glow: { x: 2.54, y: 1.59, r: 52 },
       },
     },
+    // rocket: a rocket stands on the pad (px, py = the middle of the ring, in the picture's own pixels), launches
+    //         straight up into space and a new one is put on the pad after rest = [min, max] ms (src/agents/Rockets.js)
+    rocketpad: { rocket: { px: 198, py: 142, rest: [25000, 45000] }, lights: false, beacons: [{ px: 287, py: 7 }] },
+    antenna: { beacons: [{ px: 64, py: 3 }] },
+    lantern: { glows: [{ px: 69, py: 33, color: 0xff6a3a }] },
+    basketballcourt: { lights: 'field' },
+    observatory: { lights: 'ground' },
     lamppost: { glows: [{ px: 53, py: 18 }, { px: 73, py: 24 }] },
     fujimountain: { lights: false },
     meijishrine: { lights: 'ground' },

@@ -82,6 +82,8 @@ function targetFor(to, job) {
   if (folder === 'people') return { width: 128, height: 96, trim: false };
   if (folder === 'vehicles' && name === 'police_car') return { width: 128, height: 96, trim: false };
   if (folder === 'vehicles' && /^car_/.test(name)) return { width: 64, height: 96, trim: false };
+  // the rocket pad's rocket: one upright picture (it only goes straight up), about twice as tall as the pad's tower
+  if (folder === 'vehicles' && name === 'rocket-1x1') return { width: 32, trim: true };
   if (folder === 'vehicles' && /^plane_/.test(name)) return { width: 384, height: 512, trim: false };
   if (folder === 'fx') return { width: 10, trim: true };
   if (!job.width) throw new Error(`${to}: unknown kind of file (add "width" to the job)`);

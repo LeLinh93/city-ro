@@ -193,6 +193,7 @@ Changing a width in `src/data/vehicles.js` and running `npm run art` again re-ma
 | `tank-sheet.png`, `militarytruck-sheet.png` | Out on the roads from the military base. |
 | `fighterjet-sheet.png`, `bomber-sheet.png`, `militaryhelicopter-sheet.png` | The military airport's two runways and its helipad. |
 | `destroyer-sheet.png`, `aircraftcarrier-sheet.png` | Ships of the military dock. |
+| `rocket-1x1.png` | The rocket pad's rocket: one upright picture (not a 4-view sheet), made 32 px wide as `assets/vehicles/rocket-1x1.png`. It launches straight up from the middle of the pad's ring (`rocket` in `src/themes/city.js`). |
 
 Without these files the game falls back to simple code-drawn cars and planes.
 

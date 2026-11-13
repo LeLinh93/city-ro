@@ -71,6 +71,7 @@ export class BootScene extends Phaser.Scene {
     sheet('police_car', `${BASE}vehicles/police_car.png`, ART.car);
     // Vehicles cut from the sheets by `npm run art` (4 views side by side, see src/data/vehicles.js).
     for (const id of Object.keys(VEHICLES)) L.image(`veh:${id}`, `${BASE}vehicles/${id}.png`);
+    L.image('rocket', `${BASE}vehicles/rocket-1x1.png`); // the rocket pad's rocket (src/agents/Rockets.js)
     for (let i = 0; i < ART.planeVariants; i++) sheet(`plane_${i}`, `${BASE}vehicles/plane_${i}.png`, ART.plane);
     L.image('fx_smoke', `${BASE}fx/smoke.png`);
     L.image('volcano', `${BASE}disaster/volcano-8x8.png`);

@@ -17,6 +17,7 @@ import { Disasters } from '../agents/Disasters.js';
 import { Controls } from '../input/Controls.js';
 import { Ufo } from '../agents/Ufo.js';
 import { Kaiju } from '../agents/Kaiju.js';
+import { Rockets } from '../agents/Rockets.js';
 import { Zombies } from '../agents/Zombies.js';
 import { Military } from '../agents/Military.js';
 import { loadCity, saveCity } from '../saves.js';
@@ -58,6 +59,7 @@ export class GameScene extends Phaser.Scene {
     this.traffic = new Traffic(this, world, this.pf);
     this.airports = new Airports(this, world);
     this.ships = new Ships(this, world);
+    this.rockets = new Rockets(this, world);
     this.services = new Services(this, world, this.traffic);
     this.people = new People(this, world, this.pf);
     this.disasters = new Disasters(this, world, { people: this.people, traffic: this.traffic, services: this.services });
@@ -131,6 +133,7 @@ export class GameScene extends Phaser.Scene {
     this.traffic.update(time, dt);
     this.airports.update(time, dt);
     this.ships.update(time, dt);
+    this.rockets.update(time, dt);
     this.services.update(time, dt);
     this.disasters.update(time, dt);
     this.ufo.update(time, dt);
