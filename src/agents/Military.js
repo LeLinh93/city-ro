@@ -200,6 +200,15 @@ export class Military {
     s.until = time + SORTIE_REST;
   }
 
+  // A car taken by a disaster: if it was a tank, its base sends a new one a little later.
+  lostCar(car) {
+    for (const t of this.tanks.values()) {
+      if (t.car !== car) continue;
+      t.car = null;
+      t.next = this.scene.time.now + NEW_TANK;
+    }
+  }
+
   // Is this car one of the tanks out fighting? Then it is destroyed like one (and its base sends another).
   killIfTank(car, time) {
     for (const t of this.tanks.values()) {

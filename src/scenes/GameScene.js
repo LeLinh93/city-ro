@@ -67,6 +67,9 @@ export class GameScene extends Phaser.Scene {
     this.ufo = new Ufo(this, world, { military: this.military, disasters: this.disasters });
     this.kaiju = new Kaiju(this, world, { military: this.military, disasters: this.disasters });
     this.zombies = new Zombies(this, world, { people: this.people, military: this.military, disasters: this.disasters });
+    // disasters can take zombies and soldiers too (they are made after the disasters)
+    this.disasters.zombies = this.zombies;
+    this.disasters.military = this.military;
     this.ghost = new Ghost(this);
 
     world.on('building-added', (b, silent) => {

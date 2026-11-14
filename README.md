@@ -78,11 +78,11 @@ browser a moment after every change, once a minute, and when you leave the city 
 Disasters (one at a time):
 - 🏚️ Earthquake: the screen shakes and a third to a half of the buildings fall in.
 - 🌪️ Tornado: comes in from outside the city, wanders around it for a while, ruins every building it touches
-  and sucks up people and cars, then leaves.
+  and sucks up people, cars, zombies and soldiers, then leaves.
 - 🌊 Tsunami: one huge wave from the side with the most sea. It ruins buildings in its way and gets smaller
   over land, stopping after about 30 squares.
 - ☄️ Meteor: tap where it should hit. A giant meteor crashes down and ruins everything in the 15 × 15 squares
-  around that spot; buildings in the 25 × 25 squares around it catch fire. Fire stations send their
+  around that spot (people, vehicles, zombies and soldiers there are gone too); buildings in the 25 × 25 squares around it catch fire. Fire stations send their
   helicopters (one fire each) and trucks (two per station, if a road leads there). A disaster's fires go out
   faster (4 s with a helicopter, 1.5 s with a truck as well), but a building left burning for 75 s is ruined.
   While a disaster or its fires are going on, fire stations don't start fires of their own.
@@ -90,6 +90,9 @@ Disasters (one at a time):
   whatever is there, the ground shakes, smoke pours out and fire balls fly out for about 13 seconds. Every
   building in the 25 × 25 squares around it is hit by a fire ball and catches fire (fire stations come, as
   for the meteor). Then the volcano sinks back into the ground.
+- 🕳️ Black hole: a black hole with a dark purple rim opens over the middle of the city and grows to 6 × 6
+  squares in about 22 seconds. Everything in a square round it, growing from 1 × 1 to 30 × 30, is ruined, and
+  people, vehicles, zombies and soldiers there are pulled in and gone. Then it closes.
 
 🧟 Zombies (in the Disaster menu, but they don't lock the build bar): each tap brings up to 1000 green zombies
 out of the ground in the middle of the city, never more than 1000 on the map. They shuffle to the nearest

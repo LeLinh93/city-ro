@@ -48,6 +48,8 @@ export const VEHICLES = {
   tanklorry: { sheet: 'tanklorry-sheet.png', width: 80 },
   containertruck: { sheet: 'containertruck-sheet.png', width: 80 },
   oiltanker: { sheet: 'oiltanker-sheet.png', width: 352 },
+  // the hover car: some of the traffic flies once the city has a Future lab
+  hovercar: { sheet: 'hovercar-sheet.png', width: 56 },
   // the UFO (a disaster): 6 squares wide
   ufo: { sheet: 'disaster/mothership-sheet.png', width: 768, ground: 'center' },
 };

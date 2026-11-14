@@ -250,7 +250,18 @@ export class Zombies {
     z.dead = true;
     z.deadT = 0;
     this.nLive--;
+    this.lastByDisaster = false;
     if (this.tapped === z) this.tapped = null;
+  }
+
+  // Hand a zombie over to a disaster (a tornado, a black hole): it is dead and leaves the list without fading out.
+  take(z) {
+    const k = this.list.indexOf(z);
+    if (k < 0 || z.dead) return null;
+    this.kill(z);
+    this.lastByDisaster = true; // if it was the last one, the army didn't win
+    this.list.splice(k, 1);
+    return z.im.setRotation(0);
   }
 
   // Was the world point (a tap) on a zombie? Remembers it, for the 🗑️ button.
@@ -437,7 +448,7 @@ export class Zombies {
     }
     list.length = n;
     // the last one shot: the army won
-    if (!this.nLive && !this.queue && this.wasAlive) this.scene.events.emit('zombies', false, true);
+    if (!this.nLive && !this.queue && this.wasAlive) this.scene.events.emit('zombies', false, !this.lastByDisaster);
     this.wasAlive = this.nLive > 0 || this.queue > 0;
   }
 

@@ -5,16 +5,20 @@ import { ART } from '../data/art.js';
 import { Mover } from './Mover.js';
 import { planFieldTrip } from './fields.js';
 import { CARS } from '../data/vehicles.js';
-import { vehicleSprite, faceVehicle, hasVehicle } from './vehicleArt.js';
+import { vehicleSprite, faceVehicle, hasVehicle, vehicleShadow, placeShadow } from './vehicleArt.js';
 
 const MAX_CARS = 30;
 const FUEL_CHANCE = 0.35; // how often a car driving past a gas station pulls in
 const FUEL_MS = [3500, 7000]; // how long it stays at the pump
+const HOVER = 30; // px a hover car flies above the road: over the cars, far under the planes
+const BOB = 3; // px it bobs up and down
 
 // Cars wander the road network on the right-hand lane.
 // Patrol cars (police, ambulance) leave their building, drive around, and come back.
 // Fire trucks are sent to a burning building, wait there, and drive back (see Services).
 // Cars driving past a gas station now and then pull in, stop at a pump and drive on.
+// While the city has a Future lab, some of the traffic is hover cars: they follow the roads in the air,
+// over the cars (which don't hold them up), with a shadow on the road under them.
 export class Traffic {
   constructor(scene, world, pathfinder) {
     this.scene = scene;
@@ -23,14 +27,17 @@ export class Traffic {
     this.cars = [];
     this.stations = new Map();
     this.fuel = new Map(); // gas stations: building id -> { b, used: [car or null per pump spot] }
+    this.labs = new Map(); // buildings that bring hover cars: id -> part of the traffic that flies
     this.spawnTimer = 0;
     this.variants = scene.registry.get('variants').car; // code-drawn stand-ins
     this.carIds = CARS.filter((id) => hasVehicle(scene, id));
     // a ruined building counts as gone until it is repaired
     world.onBuilding((b) => {
       if (b.def.fuel) this.fuel.set(b.id, { b, used: b.def.fuel.spots.map(() => null) });
+      if (b.def.hovercars) this.labs.set(b.id, b.def.hovercars);
     }, (b) => {
       this.fuel.delete(b.id);
+      this.labs.delete(b.id);
       for (const c of this.cars) if (c.fuel?.st.b === b) this.despawn(c);
     });
     world.onBuilding((b) => {
@@ -96,7 +103,7 @@ export class Traffic {
   blocked(c, dt) {
     const m = c.mover;
     for (const o of this.cars) {
-      if (o === c || o.leaving) continue;
+      if (o === c || o.leaving || !o.hover !== !c.hover) continue; // hover cars fly over the cars
       const dx = o.mover.px - m.px;
       const dy = o.mover.py - m.py;
       const along = dx * m.dir[0] + dy * m.dir[1];
@@ -131,8 +138,14 @@ export class Traffic {
       const i = k % w.size;
       const j = (k / w.size) | 0;
       if (!w.roadMask(i, j)) continue;
-      const id = this.carIds.length ? pick(this.carIds) : null;
-      const car = this.makeCar('civ', id, pick(this.variants), i + 0.5, j + 0.5, true, SPEED.car * rand(0.85, 1.15));
+      const hover = this.labs.size > 0 && hasVehicle(this.scene, 'hovercar') && Math.random() < Math.max(...this.labs.values());
+      const id = hover ? 'hovercar' : this.carIds.length ? pick(this.carIds) : null;
+      const car = this.makeCar('civ', id, pick(this.variants), i + 0.5, j + 0.5, true, SPEED.car * rand(0.85, 1.15) * (hover ? 1.3 : 1));
+      if (hover) {
+        car.hover = true;
+        car.bob = Math.random() * Math.PI * 2;
+        car.shadow = vehicleShadow(this.scene, car.v);
+      }
       car.cur = [i, j];
       car.heading = null;
       return;
@@ -259,7 +272,7 @@ export class Traffic {
     const [i, j] = car.cur;
     if (car.mode === 'fuel' || car.mode === 'enter' || car.mode === 'field' || car.mode === 'offroad') return false;
     if (!w.isRoad(i, j)) return false;
-    if (car.kind === 'civ' && !car.mode && this.fuel.size && this.fuelIn(car, i, j)) return true;
+    if (car.kind === 'civ' && !car.hover && !car.mode && this.fuel.size && this.fuelIn(car, i, j)) return true;
 
     if (car.mode === 'respond') {
       if (car.path?.length && w.isRoad(...car.path[0])) {
@@ -366,6 +379,13 @@ export class Traffic {
     // in a gas station: in front of the station's own picture, behind anything built in front of it
     const fb = car.fuel?.st.b;
     if (fb && this.world.buildingAt(Math.floor(m.px), Math.floor(m.py)) === fb) depth = fb.x + fb.y + fb.w + fb.d - 0.45;
+    if (car.hover && !car.gone) {
+      // in the air over the road: drawn over the cars on its square, still behind buildings in front of it
+      const up = HOVER + BOB * Math.sin(time / 450 + car.bob);
+      placeShadow(car.shadow, car.v, pos.x, pos.y, 0.22 * car.sprite.alpha, depth - 0.03, 0.85);
+      depth += 0.6;
+      pos.y -= up;
+    }
     car.sprite.setPosition(Math.round(pos.x), Math.round(pos.y)).setDepth(depth);
   }
 
@@ -396,6 +416,7 @@ export class Traffic {
     c.leaving = true;
     if (c.fuel?.st.used[c.fuel.k] === c) c.fuel.st.used[c.fuel.k] = null;
     c.gone = true;
+    c.shadow?.destroy();
     const st = c.slot !== undefined && this.stations.get(c.station);
     if (st && st.slots[c.slot]?.car === c) {
       st.slots[c.slot].car = null;
@@ -417,6 +438,7 @@ export class Traffic {
       targets: c.sprite, alpha: 0, duration: 300,
       onComplete: () => {
         c.sprite.destroy();
+        c.shadow?.destroy();
         c.gone = true;
       },
     });

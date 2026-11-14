@@ -144,6 +144,16 @@ export class Soldiers {
     }
   }
 
+  // Hand a soldier over to a disaster (a tornado, a black hole): it leaves the list without fading out.
+  take(s) {
+    const k = this.list.indexOf(s);
+    if (k < 0 || s.dead) return null;
+    s.dead = true;
+    s.leaving = true;
+    this.list.splice(k, 1);
+    return s.im;
+  }
+
   // Bitten by a zombie: it becomes one.
   convert(s) {
     this.kill(s, false);

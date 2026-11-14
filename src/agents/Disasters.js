@@ -3,7 +3,7 @@ import { toWorld } from '../iso.js';
 import { footprintPlacement } from '../world/BuildingView.js';
 import { pick, rand } from '../rng.js';
 
-// Earthquake, tornado and tsunami. Only one at a time. Ruined buildings stay ruined until Repair.
+// Earthquake, tornado, tsunami, meteor, volcano and black hole. Only one at a time. Ruined buildings stay ruined until Repair.
 export class Disasters {
   constructor(scene, world, { people, traffic, services }) {
     this.scene = scene;
@@ -28,7 +28,7 @@ export class Disasters {
 
   start(kind) {
     if (this.current) return false;
-    const make = { earthquake: Earthquake, tornado: Tornado, tsunami: Tsunami, meteor: Meteor, volcano: Volcano }[kind];
+    const make = { earthquake: Earthquake, tornado: Tornado, tsunami: Tsunami, meteor: Meteor, volcano: Volcano, blackhole: BlackHole }[kind];
     if (!make) return false;
     this.current = new make(this);
     this.scene.events.emit('disaster', true);
@@ -84,16 +84,25 @@ export class Disasters {
     return { x0, y0, x1, y1 };
   }
 
-  // People and cars within r squares of (x, y).
-  near(x, y, r) {
+  // People, cars, zombies and soldiers within r squares of (x, y): in a circle, or with square = true in the
+  // square 2r x 2r round it.
+  near(x, y, r, square = false) {
+    const inside = square ? (px, py) => Math.abs(px - x) < r && Math.abs(py - y) < r : (px, py) => Math.hypot(px - x, py - y) < r;
     const out = [];
-    for (const p of this.people.list) if (!p.leaving && Math.hypot(p.mover.px - x, p.mover.py - y) < r) out.push({ kind: 'person', a: p });
-    for (const c of this.traffic.cars) if (!c.leaving && Math.hypot(c.mover.px - x, c.mover.py - y) < r) out.push({ kind: 'car', a: c });
+    for (const p of this.people.list) if (!p.leaving && inside(p.mover.px, p.mover.py)) out.push({ kind: 'person', a: p });
+    for (const c of this.traffic.cars) if (!c.leaving && inside(c.mover.px, c.mover.py)) out.push({ kind: 'car', a: c });
+    for (const z of this.zombies?.list || []) if (!z.dead && inside(z.x, z.y)) out.push({ kind: 'zombie', a: z });
+    for (const s of this.military?.soldiers.list || []) if (!s.dead && inside(s.mover.px, s.mover.py)) out.push({ kind: 'soldier', a: s });
     return out;
   }
 
+  // Takes it out of its list and hands back its picture (or null), for the disaster to carry off.
   take(t) {
-    return t.kind === 'person' ? this.people.take(t.a) : this.traffic.take(t.a);
+    if (t.kind === 'person') return this.people.take(t.a);
+    if (t.kind === 'zombie') return this.zombies.take(t.a);
+    if (t.kind === 'soldier') return this.military.soldiers.take(t.a);
+    this.military?.lostCar(t.a);
+    return this.traffic.take(t.a);
   }
 
   // Buildings whose footprint is within r squares of (x, y).
@@ -523,11 +532,11 @@ class Meteor {
     this.state = 'after';
     this.t1 = time;
     d.scene.cameras.main.shake(1300, 0.018, true);
-    // everything in the 15 x 15 square is ruined, people and cars there are gone
+    // everything in the 15 x 15 square is ruined; people, vehicles, zombies and soldiers there are gone
     const half = RUIN_SIZE / 2;
     const inside = (b, h) => b.x < this.x + h && b.x + b.w > this.x - h && b.y < this.y + h && b.y + b.d > this.y - h;
     for (const b of [...w.buildings.values()]) if (inside(b, half)) w.ruinBuilding(b);
-    for (const t of d.near(this.x, this.y, half * 1.2)) {
+    for (const t of d.near(this.x, this.y, half, true)) {
       const sprite = d.take(t);
       if (sprite) d.scene.tweens.add({ targets: sprite, alpha: 0, duration: 300, onComplete: () => sprite.destroy() });
     }
@@ -739,5 +748,168 @@ class Volcano {
     this.plume.destroy();
     this.sparks.destroy();
     this.balls = [];
+  }
+}
+
+// ---------- black hole ----------
+
+const HOLE_GROW_MS = 22000; // it grows, and its reach with it
+const HOLE_HOLD_MS = 4000; // full size
+const HOLE_CLOSE_MS = 1800; // it shrinks to nothing and is gone
+const HOLE_LOOK = [0.5, 6]; // squares wide it looks: from small to 6 x 6
+const HOLE_REACH = [1, 30]; // squares: it destroys everything in this square round it, from 1 x 1 to 30 x 30
+const HOLE_LIFT = 0.45; // its middle floats this part of its size above the ground
+const PULL_MS = [1100, 1900]; // how long a building's bits, a person or a car take to fall in
+
+// A black hole opens over the middle of the city. It grows to 6 x 6 squares while everything in a square
+// round it, from 1 x 1 out to 30 x 30, is ruined, and people, vehicles, zombies and soldiers there are
+// pulled in and gone. Then it closes.
+class BlackHole {
+  constructor(d) {
+    this.d = d;
+    const box = d.cityBounds();
+    this.x = (box.x0 + box.x1) / 2;
+    this.y = (box.y0 + box.y1) / 2;
+    this.t0 = d.scene.time.now;
+    this.carried = []; // pictures being pulled in
+    this.bits = []; // bits of ruined buildings being pulled in
+    this.nextCheck = 0;
+    this.nextShake = 0;
+    this.look = 0;
+    this.front = d.scene.add.graphics().setDepth(DEPTH.AIR - 2); // its black middle and the front of its disk
+  }
+
+  update(time) {
+    const d = this.d;
+    const t = time - this.t0;
+    const grow = Math.min(1, t / HOLE_GROW_MS);
+    const closing = t > HOLE_GROW_MS + HOLE_HOLD_MS;
+    const shut = closing ? Math.min(1, (t - HOLE_GROW_MS - HOLE_HOLD_MS) / HOLE_CLOSE_MS) : 0;
+    // it opens fast and grows slower and slower
+    this.look = (HOLE_LOOK[0] + (HOLE_LOOK[1] - HOLE_LOOK[0]) * (1 - (1 - grow) ** 2)) * (1 - shut * shut) * Math.min(1, t / 600);
+    if (!closing && time > this.nextCheck) {
+      this.nextCheck = time + 100;
+      this.pull(time, (HOLE_REACH[0] + (HOLE_REACH[1] - HOLE_REACH[0]) * grow) / 2);
+    }
+    if (!closing && time > this.nextShake) {
+      d.scene.cameras.main.shake(420, 0.0015 + 0.004 * grow, true);
+      this.nextShake = time + 400;
+    }
+    this.render(time);
+    const done = shut >= 1 && !this.carried.length && !this.bits.length;
+    if (done) this.front.destroy();
+    return done;
+  }
+
+  // Everything within h squares (a square box) of its middle is ruined or pulled in.
+  pull(time, h) {
+    const d = this.d;
+    const w = d.world;
+    for (const b of [...w.buildings.values()]) {
+      if (b.ruined || b.x >= this.x + h || b.x + b.w <= this.x - h || b.y >= this.y + h || b.y + b.d <= this.y - h) continue;
+      w.ruinBuilding(b);
+      // bits of it fly off into the hole
+      const n = Math.min(24, 4 + b.w * b.d * 2);
+      for (let k = 0; k < n; k++) {
+        const p = toWorld(b.x + rand(0, b.w), b.y + rand(0, b.d));
+        this.bits.push(this.falling(p.x, p.y - rand(0, 60), time, { size: rand(2, 6), col: pick([0x6b5a4c, 0x8f8578, 0x4a3f38, 0xb0a597]) }));
+      }
+    }
+    for (const t of d.near(this.x, this.y, h, true)) {
+      const sprite = d.take(t);
+      if (sprite) this.carried.push(this.falling(sprite.x, sprite.y, time, { sprite }));
+    }
+  }
+
+  // Something at (x, y) px starting to fall in: it circles round the hole faster and faster as it goes in.
+  falling(x, y, time, extra) {
+    const c = this.middle();
+    const dx = x - c.x;
+    const dy = (y - c.y) * 2; // the disk lies flat-ish, like the ground
+    return { t0: time, ms: rand(...PULL_MS), r0: Math.max(10, Math.hypot(dx, dy)), a0: Math.atan2(dy, dx), spin: rand(4, 7), ...extra };
+  }
+
+  // Where its middle is, in world px.
+  middle() {
+    const p = toWorld(this.x, this.y);
+    return { x: p.x, y: p.y - this.look * 64 * HOLE_LIFT * 2 };
+  }
+
+  // Where a falling thing is now: { x, y, k (0 at the start, 1 inside) }.
+  place(f, time) {
+    const k = Math.min(1, (time - f.t0) / f.ms);
+    const c = this.middle();
+    const r = f.r0 * (1 - k) ** 1.6;
+    const a = f.a0 + f.spin * k * k;
+    return { x: c.x + Math.cos(a) * r, y: c.y + Math.sin(a) * r * 0.5, k };
+  }
+
+  stop() {
+    for (const c of this.carried) c.sprite.destroy();
+    this.carried = [];
+    this.bits = [];
+    this.front.destroy();
+  }
+
+  render(time) {
+    const g = this.d.draw;
+    const f = this.front;
+    g.clear();
+    f.clear();
+    const tt = time / 1000;
+    const ground = toWorld(this.x, this.y);
+    const c = this.middle();
+    const R = this.look * 64; // its size, px (6 squares: 384 px from its middle to its edge)
+    if (R > 0) {
+      // a purple shade on the ground under it
+      g.fillStyle(0x1a0630, 0.35);
+      g.fillEllipse(ground.x, ground.y, R * 2.6, R * 1.3);
+      // a dark purple glow round it, pulsing a little
+      const pulse = 1 + Math.sin(tt * 3) * 0.04;
+      for (let k = 6; k >= 1; k--) {
+        g.fillStyle(k > 3 ? 0x3d0f6e : 0x5b1a99, 0.07 + (6 - k) * 0.035);
+        g.fillCircle(c.x, c.y, R * (0.8 + k * 0.13) * pulse);
+      }
+    }
+    // the bits of buildings falling in (behind its black middle, so they vanish into it)
+    this.bits = this.bits.filter((b) => {
+      const p = this.place(b, time);
+      g.fillStyle(b.col, 1 - p.k * 0.5);
+      const s = b.size * (1 - p.k * 0.7);
+      g.fillRect(p.x - s / 2, p.y - s / 2, s, s);
+      return p.k < 1;
+    });
+    // people, cars, zombies and soldiers falling in, spinning and shrinking
+    this.carried = this.carried.filter((cr) => {
+      const p = this.place(cr, time);
+      cr.sprite.setPosition(p.x, p.y).setDepth(DEPTH.AIR - 2.5).setScale(1 - p.k * 0.8).setAngle(p.k * p.k * 900).setAlpha(1 - p.k ** 4);
+      if (p.k >= 1) {
+        cr.sprite.destroy();
+        return false;
+      }
+      return true;
+    });
+    if (R <= 0) return;
+    // the glowing disk swirling round it, tilted: its far half behind the black middle, its near half in front
+    const disk = (front) => {
+      const layer = front ? f : g;
+      for (let i = 0; i < 140; i++) {
+        const band = ((i * 37) % 100) / 100;
+        const a = tt * (2.6 - band * 1.4) + i * 2.399;
+        if ((Math.sin(a) >= 0) !== front) continue;
+        const rr = R * (0.85 + band * 0.75);
+        layer.fillStyle(band < 0.3 ? 0xe0b0ff : band < 0.65 ? 0xa64dff : 0x6a22c0, 0.85 - band * 0.5);
+        layer.fillCircle(c.x + Math.cos(a) * rr, c.y + Math.sin(a) * rr * 0.28, Math.max(1, R * (0.03 - band * 0.015)));
+      }
+    };
+    disk(false);
+    // the black middle with its dark purple rim
+    f.fillStyle(0x4a1585, 0.95);
+    f.fillCircle(c.x, c.y, R * 0.8);
+    f.fillStyle(0x8a3ad8, 0.9);
+    f.fillCircle(c.x, c.y, R * 0.76);
+    f.fillStyle(0x07020c, 1);
+    f.fillCircle(c.x, c.y, R * 0.72);
+    disk(true);
   }
 }
