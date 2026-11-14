@@ -118,6 +118,9 @@ until 🔧 Repair. Ruins can't be moved, but 🚜 Remove clears them.
 What moves on its own:
 - People walk out of doors, use sidewalks (or cut across grass), and walk into other buildings.
 - Cars drive on the right-hand lane of every road and queue behind each other.
+- Every Future lab brings 10 hover cars (30 at most, and no more than one per 3 road squares) on top of the
+  cars; 5 of them are on the road at once when it is built or the city is opened. They fly over the road and
+  over the cars, with a shadow on the road under them.
 - Police cars, the ambulance, taxis (taxi center), the bus (bus stop), mail vans (post office) and garbage
   trucks (recycling plant) leave their building, drive around, and come home. They come out of the garage
   (police, fire station) or door when a road is there, else any side touching a road; with no road touching

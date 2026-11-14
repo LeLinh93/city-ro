@@ -12,12 +12,13 @@ const FUEL_CHANCE = 0.35; // how often a car driving past a gas station pulls in
 const FUEL_MS = [3500, 7000]; // how long it stays at the pump
 const HOVER = 30; // px a hover car flies above the road: over the cars, far under the planes
 const BOB = 3; // px it bobs up and down
+const MAX_HOVER = 30; // hover cars in the air at most, however many labs there are
 
 // Cars wander the road network on the right-hand lane.
 // Patrol cars (police, ambulance) leave their building, drive around, and come back.
 // Fire trucks are sent to a burning building, wait there, and drive back (see Services).
 // Cars driving past a gas station now and then pull in, stop at a pump and drive on.
-// While the city has a Future lab, some of the traffic is hover cars: they follow the roads in the air,
+// While the city has a Future lab, hover cars join the traffic (on top of the cars): they follow the roads in the air,
 // over the cars (which don't hold them up), with a shadow on the road under them.
 export class Traffic {
   constructor(scene, world, pathfinder) {
@@ -27,14 +28,19 @@ export class Traffic {
     this.cars = [];
     this.stations = new Map();
     this.fuel = new Map(); // gas stations: building id -> { b, used: [car or null per pump spot] }
-    this.labs = new Map(); // buildings that bring hover cars: id -> part of the traffic that flies
+    this.labs = new Map(); // buildings that bring hover cars: id -> how many
+    this.hoverNow = 0; // hover cars to put on the road straight away (a lab just built, or a city just opened)
     this.spawnTimer = 0;
     this.variants = scene.registry.get('variants').car; // code-drawn stand-ins
     this.carIds = CARS.filter((id) => hasVehicle(scene, id));
     // a ruined building counts as gone until it is repaired
     world.onBuilding((b) => {
       if (b.def.fuel) this.fuel.set(b.id, { b, used: b.def.fuel.spots.map(() => null) });
-      if (b.def.hovercars) this.labs.set(b.id, b.def.hovercars);
+      const h = b.def.hovercars;
+      if (h) {
+        this.labs.set(b.id, h.count);
+        this.hoverNow += h.start;
+      }
     }, (b) => {
       this.fuel.delete(b.id);
       this.labs.delete(b.id);
@@ -58,13 +64,24 @@ export class Traffic {
   }
 
   update(time, dt) {
-    const civ = this.cars.filter((c) => c.kind === 'civ' && !c.leaving);
+    const civ = this.cars.filter((c) => c.kind === 'civ' && !c.leaving && !c.hover);
+    const hover = this.cars.filter((c) => c.hover && !c.leaving);
+    const wantHover = this.hoverTarget();
+    // a lab just built (or the city just opened): a few hover cars at once
+    for (; this.hoverNow > 0 && hover.length < wantHover; this.hoverNow--) {
+      const car = this.spawnCivilian(true);
+      if (!car) break;
+      hover.push(car);
+    }
+    this.hoverNow = 0;
     this.spawnTimer -= dt;
     if (this.spawnTimer <= 0) {
       this.spawnTimer = 0.4;
       const want = this.carTarget();
       if (civ.length < want) this.spawnCivilian();
       else if (civ.length > want) this.despawn(civ[0]);
+      if (hover.length < wantHover) this.spawnCivilian(true);
+      else if (hover.length > wantHover) this.despawn(hover[0]);
     }
 
     for (const st of this.stations.values()) {
@@ -130,26 +147,44 @@ export class Traffic {
     return car;
   }
 
-  spawnCivilian() {
+  // Hover cars wanted: what the labs bring, but not more than a third of a car per road square.
+  hoverTarget() {
+    if (!this.labs.size || !hasVehicle(this.scene, 'hovercar')) return 0;
+    let n = 0;
+    for (const k of this.labs.values()) n += k;
+    return Math.min(MAX_HOVER, n, Math.max(3, Math.floor(this.world.roadCount / 3)));
+  }
+
+  // A road square to put a new car on (a random one; with few roads, the next one after a random spot).
+  randomRoad() {
     const w = this.world;
+    const n = w.road.length;
+    const ok = (k) => w.road[k] && w.roadMask(k % w.size, (k / w.size) | 0);
     for (let tries = 0; tries < 20; tries++) {
-      const k = Math.floor(Math.random() * w.road.length);
-      if (!w.road[k]) continue;
-      const i = k % w.size;
-      const j = (k / w.size) | 0;
-      if (!w.roadMask(i, j)) continue;
-      const hover = this.labs.size > 0 && hasVehicle(this.scene, 'hovercar') && Math.random() < Math.max(...this.labs.values());
-      const id = hover ? 'hovercar' : this.carIds.length ? pick(this.carIds) : null;
-      const car = this.makeCar('civ', id, pick(this.variants), i + 0.5, j + 0.5, true, SPEED.car * rand(0.85, 1.15) * (hover ? 1.3 : 1));
-      if (hover) {
-        car.hover = true;
-        car.bob = Math.random() * Math.PI * 2;
-        car.shadow = vehicleShadow(this.scene, car.v);
-      }
-      car.cur = [i, j];
-      car.heading = null;
-      return;
+      const k = Math.floor(Math.random() * n);
+      if (ok(k)) return k;
     }
+    const start = Math.floor(Math.random() * n);
+    for (let d = 0; d < n; d++) if (ok((start + d) % n)) return (start + d) % n;
+    return -1;
+  }
+
+  spawnCivilian(hover = false) {
+    const w = this.world;
+    const k = this.randomRoad();
+    if (k < 0) return null;
+    const i = k % w.size;
+    const j = (k / w.size) | 0;
+    const id = hover ? 'hovercar' : this.carIds.length ? pick(this.carIds) : null;
+    const car = this.makeCar('civ', id, pick(this.variants), i + 0.5, j + 0.5, true, SPEED.car * rand(0.85, 1.15) * (hover ? 1.3 : 1));
+    if (hover) {
+      car.hover = true;
+      car.bob = Math.random() * Math.PI * 2;
+      car.shadow = vehicleShadow(this.scene, car.v);
+    }
+    car.cur = [i, j];
+    car.heading = null;
+    return car;
   }
 
   // Where a building's vehicles come and go: its garage, or else its door.

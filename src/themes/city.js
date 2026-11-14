@@ -175,7 +175,7 @@ export const CITY = {
     },
     // rocket: a rocket stands on the pad (px, py = the middle of the ring, in the picture's own pixels), launches
     //         straight up into space and a new one is put on the pad after rest = [min, max] ms (src/agents/Rockets.js)
-    futurelab: { hovercars: 0.35 }, // part of the city's traffic that flies while it stands
+    futurelab: { hovercars: { count: 10, start: 5 } }, // hover cars it brings (on top of the cars), and how many come at once
     rocketpad: { rocket: { px: 198, py: 142, rest: [25000, 45000] }, lights: false, beacons: [{ px: 287, py: 7 }] },
     antenna: { beacons: [{ px: 64, py: 3 }] },
     lantern: { glows: [{ px: 69, py: 33, color: 0xff6a3a }] },
