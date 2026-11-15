@@ -1,13 +1,15 @@
 // Railway squares, drawn by code: a bed of gravel a little more than half a square wide down the middle of the
-// square, wooden sleepers across it and two steel rails on top. A bend between two sides that meet in a corner is a
+// square with two tracks on it, one for each direction (trains keep to the right, like cars): wooden sleepers and
+// two steel rails each. A bend between two sides that meet in a corner is a
 // quarter circle round that corner. On a level crossing there is no gravel: the rails sit in a concrete deck.
 import { Pix, tileUV } from './raster.js';
 import { hash2 } from '../rng.js';
 
-const BED = 0.29; // half the width of the gravel bed, in squares (so the bed is 0.58 wide)
-const TIE = 0.21; // half the length of a sleeper
-const GAUGE = 0.1; // the rails are this far either side of the middle
-const RAIL = 0.022; // half the width of a rail
+export const TRACK = 0.155; // the middle of each track is this far from the middle of the bed, in squares
+const BED = 0.32; // half the width of the gravel bed (so the bed is 0.64 wide)
+const TIE = 0.11; // half the length of a sleeper
+const GAUGE = 0.06; // the rails are this far either side of the middle of their track
+const RAIL = 0.018; // half the width of a rail
 const TIE_EVERY = 0.2; // a sleeper every 0.2 squares
 const TIE_W = 0.075;
 
@@ -79,13 +81,15 @@ export function genRail(mask, crossing = false) {
       let rail = 0; // 0 none, 1 rail top, 2 its shaded side
       let gap = Infinity; // how far from the nearest rail
       for (const [d, t] of pieceCoords(pieces, u, v, co)) {
-        const ad = Math.abs(d);
-        bed = Math.min(bed, ad);
-        if (ad < TIE && mod(t, TIE_EVERY) < TIE_W) tie = true;
-        const r = Math.abs(ad - GAUGE);
-        gap = Math.min(gap, r);
-        if (r < RAIL) rail = Math.max(rail, 1);
-        else if (r < RAIL + 0.016 && ad > GAUGE) rail = Math.max(rail, 2);
+        bed = Math.min(bed, Math.abs(d));
+        for (const side of [-1, 1]) {
+          const ad = Math.abs(d - side * TRACK); // from the middle of this track
+          if (ad < TIE && mod(t, TIE_EVERY) < TIE_W) tie = true;
+          const r = Math.abs(ad - GAUGE);
+          gap = Math.min(gap, r);
+          if (r < RAIL) rail = Math.max(rail, 1);
+          else if (r < RAIL + 0.014 && ad > GAUGE) rail = Math.max(rail, 2);
+        }
       }
       if (bed >= BED) continue;
       const h = hash2(px, py, 91);
@@ -93,7 +97,7 @@ export function genRail(mask, crossing = false) {
         // a concrete deck the cars drive over, with a dark groove along each rail
         if (gap < RAIL) pix.set(px, py, 0xdfe3e8);
         else if (gap < RAIL + 0.02) pix.set(px, py, 0x2a2c30);
-        else if (bed < GAUGE + 0.08) pix.set(px, py, h < 0.5 ? 0x8f8e89 : 0x898883);
+        else if (bed < TRACK + GAUGE + 0.05) pix.set(px, py, h < 0.5 ? 0x8f8e89 : 0x898883);
         continue;
       }
       if (rail === 1) pix.set(px, py, 0xd2d6dc);

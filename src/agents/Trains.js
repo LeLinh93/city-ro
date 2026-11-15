@@ -2,16 +2,20 @@ import { SIDES, SIDE_LIST } from '../constants.js';
 import { toWorld } from '../iso.js';
 import { pick, rand } from '../rng.js';
 import { vehicleSprite, faceVehicle, hasVehicle } from './vehicleArt.js';
+import { TRACK } from '../art/rails.js';
 
 // Trains on the railways (World.rail). A train station (`train` in src/themes/city.js) touching the rails sends
 // trains of its own kind (us, eu, jp) onto that network: an engine and two wagons. They drive along the rails,
-// stop at every station they pass (people get off and on) and drive on. At the end of a line a train disappears
-// and comes back at the start of the line; on a loop it just keeps going round.
+// stop at every station they pass (people get off and on) and drive on. Every rail square has two tracks, one for
+// each direction, and trains keep to the right (like cars), so trains going opposite ways pass each other. At the end
+// of a line a train stops and comes back on the other track; on a loop it just keeps going round.
+// A train only waits for another one that is really in its way: ahead of it on its own track, or crossing its way
+// at a junction (where two meet, the older train goes first).
 // How many trains a network gets depends on how long it is (not on how many stations it has), and each kind of
 // station on it gets its own kind of train if the network is long enough for them all.
 // Where a railway crosses a road, barriers come down while a train goes past and the cars wait (see Traffic).
 // Disasters take train cars like any other vehicle (see Disasters.near): the rest of that train stops, fades away
-// after a moment and a new train comes back at the start of the line.
+// after a moment and a new train comes back somewhere free on the rails.
 
 const TOP_SPEED = 2.2; // squares per second
 const ACCEL = 0.8; // squares per second²
@@ -19,7 +23,9 @@ const BRAKE = 1.1;
 const DWELL = [3500, 5500]; // ms at a station
 const GAP = 0.06; // squares between two cars of a train
 const LOOK = 7; // squares of track a train plans ahead
-const STUCK_MS = 8000; // a train held up this long by another one disappears and comes back at the start
+const STUCK_MS = 12000; // a train held up this long (it should not happen) disappears and comes back somewhere free
+const TURN_MS = 1500; // ms a train stands at the end of a line before it comes back on the other track
+const RESERVE = 0.8; // squares ahead of its front a train keeps clear for itself
 const FADE_MS = 600;
 const PER_TRAIN = 30; // one more train for every this many squares of rail ...
 const ROOM = 11; // ... but at least this many squares of rail for every train
@@ -38,6 +44,7 @@ export class Trains {
     this.world = world;
     this.people = people;
     this.trains = [];
+    this.nextId = 1; // older trains (lower numbers) go first where two meet
     this.stations = new Map(); // id -> building
     this.nets = []; // [{ id, tiles: [k], ends: [k], kinds: [...] }]
     this.netOf = new Int32Array(world.size * world.size).fill(-1);
@@ -110,6 +117,14 @@ export class Trains {
     // trains whose rails are gone go away; the others plan their way again from just ahead of them
     for (const t of this.trains) {
       if (t.state === 'hidden' || t.state === 'gone') continue;
+      if (t.state === 'turn') {
+        // turning at the end of the line: it only needs the rails it stands on
+        const tail = t.s - t.len;
+        const ok = t.tiles.every((T) => (T.s1 !== null && T.s1 <= tail) || T.s0 > t.s || this.world.isRail(T.i, T.j));
+        t.net = this.netOf[t.turnAt.k];
+        if (!ok || t.net < 0) this.remove(t);
+        continue;
+      }
       if (!this.replan(t)) this.remove(t);
     }
     this.rebuildGates();
@@ -160,53 +175,90 @@ export class Trains {
   spawn(net, kind) {
     const cars = this.makeCars(kind);
     const len = cars.reduce((a, c) => a + c.len, 0) + GAP * (cars.length - 1);
-    const t = { kind, net: net.id, cars, len, state: 'hidden', alpha: 0, v: 0, stuck: 0 };
+    const t = { id: this.nextId++, kind, net: net.id, cars, len, state: 'hidden', alpha: 0, v: 0, stuck: 0 };
     this.trains.push(t);
     this.place(t);
     return t;
   }
 
-  // Put a hidden train at the start of its line (or anywhere free on a loop). False if there is no room right now.
+  // Put a hidden train on the rails where it is not in another train's way: at an end of the line if one is
+  // free, else anywhere. False if there is no room right now.
   place(t) {
     const net = this.nets[t.net];
     if (!net) return false;
     const w = this.world;
     const N = w.size;
-    const free = (k) => {
-      const x = (k % N) + 0.5;
-      const y = ((k / N) | 0) + 0.5;
-      return this.trains.every((o) => o === t || o.state === 'hidden' || o.state === 'gone'
-        || o.cars.every((c) => !c.at || Math.hypot(c.at.x - x, c.at.y - y) > t.len + 1.5));
-    };
-    let start = -1;
-    if (net.ends.length) {
-      if (free(net.ends[0])) start = net.ends[0];
-    } else {
-      for (let tries = 0; tries < 12 && start < 0; tries++) {
-        const k = pick(net.tiles);
-        if (free(k)) start = k;
-      }
+    const starts = [...net.ends].sort(() => Math.random() - 0.5);
+    for (let n = 0; n < 10; n++) starts.push(pick(net.tiles));
+    for (const k of starts) {
+      const i = k % N;
+      const j = (k / N) | 0;
+      const outs = SIDE_LIST.filter((s) => w.isRail(i + SIDES[s].dx, j + SIDES[s].dy));
+      if (!outs.length) continue;
+      const r = this.route(t, k, pick(outs));
+      if (this.conflicts(t, r)) continue;
+      this.useRoute(t, r);
+      t.state = 'run';
+      t.alpha = 0;
+      t.fadeIn = true;
+      this.render(t, this.scene.time.now);
+      return true;
     }
-    if (start < 0) return false;
-    const i = start % N;
-    const j = (start / N) | 0;
-    const outs = SIDE_LIST.filter((s) => w.isRail(i + SIDES[s].dx, j + SIDES[s].dy));
-    const out = outs.length ? pick(outs) : 'se';
-    t.tiles = [{ i, j, k: start, inSide: OPP[out], s0: 0, s1: null, first: out }];
-    t.pts = [{ x: i + PORT[OPP[out]][0], y: j + PORT[OPP[out]][1], s: 0 }];
-    t.stops = [];
-    t.endS = null;
-    t.s = 0;
+    return false;
+  }
+
+  // A new way for train t from rail square k, heading out of side `out`, with the whole train on the rails
+  // (its last wagon at the edge of square k).
+  route(t, k, out) {
+    const N = this.world.size;
+    const i = k % N;
+    const j = (k / N) | 0;
+    const d = SIDES[out];
+    const p = PORT[OPP[out]];
+    const r = {
+      len: t.len, s: 0, endS: null, stops: [],
+      tiles: [{ i, j, k, inSide: OPP[out], s0: 0, s1: null, first: out }],
+      pts: [{ x: i + p[0] - d.dy * TRACK, y: j + p[1] + d.dx * TRACK, s: 0 }], // on its right-hand track
+    };
+    this.extend(r, t.len + LOOK);
+    r.s = Math.min(t.len, r.endS ?? Infinity);
+    r.stops = r.stops.filter((st) => st.s > r.s);
+    return r;
+  }
+
+  useRoute(t, r) {
+    t.tiles = r.tiles;
+    t.pts = r.pts;
+    t.stops = r.stops;
+    t.endS = r.endS;
+    t.s = r.s;
     t.v = 0;
     t.stuck = 0;
-    this.extend(t, t.len + LOOK);
-    t.s = Math.min(t.len, t.endS ?? Infinity); // the whole train on the rails, its last wagon at the start
-    t.stops = t.stops.filter((st) => st.s > t.s);
-    t.state = 'run';
-    t.alpha = 0;
-    t.fadeIn = true;
-    this.render(t, this.scene.time.now); // so the next train placed knows this one is here
-    return true;
+  }
+
+  // ---------- who is in whose way ----------
+
+  // Can two trains be on the same square at once? Only on its two tracks going opposite ways.
+  passes(a, b) {
+    return !!a.out && !!b.out && a.inSide === b.out && a.out === b.inSide;
+  }
+
+  // The squares train o is on, and with reserve also the ones it is just about to enter.
+  usedBy(o, reserve) {
+    const tail = o.s - o.len;
+    return o.tiles.filter((T) => (T.s1 === null || T.s1 > tail) && T.s0 <= o.s + (reserve ? RESERVE : 0));
+  }
+
+  // Would way r (a train just put down) be in another train's way?
+  conflicts(t, r) {
+    const mine = r.tiles.filter((T) => T.s0 < r.s + RESERVE);
+    for (const o of this.trains) {
+      if (o === t || o.net !== t.net || o.state === 'hidden' || o.state === 'gone' || !o.tiles) continue;
+      for (const E of this.usedBy(o, true)) {
+        if (mine.some((T) => T.k === E.k && !this.passes(T, E))) return true;
+      }
+    }
+    return false;
   }
 
   // Lay out more of the train's way ahead until `upTo` (distance along its way).
@@ -237,16 +289,20 @@ export class Trains {
   lay(t, T, out) {
     const a = T.inSide;
     const b = out || OPP[a];
-    const push = (u, v) => {
+    T.out = b;
+    // a point of the middle of the rails, moved over to the right-hand track of the way it goes (tx, ty)
+    const push = (u, v, tx, ty) => {
       const last = t.pts[t.pts.length - 1];
-      const x = T.i + u;
-      const y = T.j + v;
+      const x = T.i + u - ty * TRACK;
+      const y = T.j + v + tx * TRACK;
       t.pts.push({ x, y, s: last.s + Math.hypot(x - last.x, y - last.y) });
     };
     if (b === OPP[a]) {
-      push(0.5, 0.5);
+      const tx = SIDES[b].dx;
+      const ty = SIDES[b].dy;
+      push(0.5, 0.5, tx, ty);
       T.mid = t.pts[t.pts.length - 1].s;
-      push(...PORT[b]);
+      push(...PORT[b], tx, ty);
     } else {
       const pa = PORT[a];
       const pb = PORT[b];
@@ -257,7 +313,8 @@ export class Trains {
       if (da < -Math.PI) da += Math.PI * 2;
       for (let n = 1; n <= 6; n++) {
         const ang = a0 + (da * n) / 6;
-        push(c[0] + 0.5 * Math.cos(ang), c[1] + 0.5 * Math.sin(ang));
+        const sg = Math.sign(da);
+        push(c[0] + 0.5 * Math.cos(ang), c[1] + 0.5 * Math.sin(ang), -Math.sin(ang) * sg, Math.cos(ang) * sg);
         if (n === 3) T.mid = t.pts[t.pts.length - 1].s;
       }
     }
@@ -298,6 +355,7 @@ export class Trains {
     }
     t.tiles.length = m + 1;
     T.s1 = null;
+    T.out = null;
     T.mid = null;
     T.first = null;
     t.pts = t.pts.filter((p) => p.s <= T.s0 + 1e-6);
@@ -350,19 +408,19 @@ export class Trains {
   }
 
   // Where another train is in the way: the distance along t's way it must stop before (Infinity if none).
+  // Only another train on its own track ahead, or one on (or just about to enter) a square where their ways cross,
+  // holds it up. Where both are about to enter the same square, the older train goes first.
   blockedAt(t) {
     let limit = Infinity;
-    const ahead = t.tiles.filter((T) => T.s0 > t.s - 0.2 && T.s0 < t.s + LOOK);
+    const ahead = t.tiles.filter((T) => T.s0 > t.s && T.s0 < t.s + LOOK);
     if (!ahead.length) return limit;
     for (const o of this.trains) {
       if (o === t || o.net !== t.net || o.state === 'hidden' || o.state === 'gone' || !o.tiles) continue;
-      const tail = o.s - o.len;
-      const used = new Set();
-      for (const T of o.tiles) if ((T.s1 === null || T.s1 > tail) && T.s0 < o.s + 0.8) used.add(T.k);
+      const used = this.usedBy(o, o.id < t.id);
       for (const T of ahead) {
-        if (T.s0 <= t.s) continue;
-        if (used.has(T.k)) {
-          limit = Math.min(limit, T.s0 - 0.35);
+        if (T.s0 - 0.35 >= limit) break;
+        if (used.some((E) => E.k === T.k && !this.passes(T, E))) {
+          limit = T.s0 - 0.35;
           break;
         }
       }
@@ -404,12 +462,17 @@ export class Trains {
       this.render(t, time);
       return;
     }
+    if (t.state === 'turn') {
+      this.turn(t, time, dt);
+      this.render(t, time);
+      return;
+    }
     this.extend(t, t.s + LOOK);
     // how far it may go: the next station, the end of the line, or another train in the way
     let target = Infinity;
     const stop = t.stops[0];
     if (stop) target = stop.s;
-    if (t.endS !== null) target = Math.min(target, t.endS + 0.4);
+    if (t.endS !== null) target = Math.min(target, t.endS - 0.2); // the buffer at the end of the line
     const block = this.blockedAt(t);
     target = Math.min(target, block);
     t.target = target;
@@ -424,15 +487,37 @@ export class Trains {
       t.state = 'dwell';
       t.until = time + rand(...DWELL);
       this.passengers(t, stop.b);
-    } else if (t.endS !== null && t.s >= t.endS - 0.1) {
-      t.state = 'fade'; // gone at the end of the line, back at the start
-      t.v = Math.min(t.v, 0.8);
+    } else if (t.endS !== null && t.s >= t.endS - 0.25) {
+      // the end of the line: it stands a moment, then comes back on the other track
+      const T = t.tiles[t.tiles.length - 1];
+      t.state = 'turn';
+      t.v = 0;
+      t.until = time + TURN_MS;
+      t.turnAt = { k: T.k, side: T.inSide };
     } else if (block < Infinity && t.v < 0.05) {
       t.stuck += dt * 1000;
       if (t.stuck > STUCK_MS) t.state = 'fade';
     } else t.stuck = 0;
     this.trim(t);
     this.render(t, time);
+  }
+
+  // At the end of the line: it fades out, and fades in again on the other track heading back, on the same squares
+  // (the engine now at the other end). It waits there while the way back is not free.
+  turn(t, time, dt) {
+    if (time < t.until) return;
+    if (t.alpha > 0) {
+      t.alpha = Math.max(0, t.alpha - dt * 1000 / FADE_MS);
+      return;
+    }
+    const r = this.route(t, t.turnAt.k, t.turnAt.side);
+    if (this.conflicts(t, r)) {
+      t.until = time + 500;
+      return;
+    }
+    this.useRoute(t, r);
+    t.state = 'run';
+    t.fadeIn = true;
   }
 
   // Forget the way behind the last wagon.
@@ -490,7 +575,7 @@ export class Trains {
       t.until = this.scene.time.now + WRECK_MS;
     }
     if (t.cars.every((x) => x.taken)) {
-      // nothing left: a new one comes back at the start
+      // nothing left: a new one comes back somewhere free
       t.state = 'hidden';
       t.alpha = 0;
       t.cars = this.makeCars(t.kind);

@@ -118,17 +118,21 @@ until 🔧 Repair. Ruins can't be moved, but 🚜 Remove clears them.
 What moves on its own:
 - People walk out of doors, use sidewalks (or cut across grass), and walk into other buildings.
 - Cars drive on the right-hand lane of every road and queue behind each other.
-- Rails are a narrow track (a little more than half a square wide) down the middle of the squares, curving round
-  corners. A train station (US, EU or JP, in Transport) next to the rails sends trains of its own kind onto that rail
-  network: an engine and two wagons. Trains stop at every station they pass, people get off and on, and they drive
-  on. On a line with ends a train disappears at the end and comes back at the start; on a loop it keeps going round.
+- Rails are a double track (a little more than half a square wide) down the middle of the squares, curving round
+  corners: one track for each direction. A train station (US, EU or JP, in Transport) next to the rails sends trains
+  of its own kind onto that rail network: an engine and two wagons. Trains keep to the right-hand track (like cars),
+  so trains going opposite ways pass each other. They stop at every station they pass, people get off and on, and
+  they drive on. At the end of a line a train stops and comes back on the other track; on a loop it keeps going
+  round. A train only waits for another one ahead of it on its own track, or crossing its way at a junction (the
+  older one goes first).
   How many trains a network gets depends on its length, not on its stations: one per 11 rail squares at most, and
   one plus one per 30 squares (but at least one of each station kind when the network is long enough for them all).
-  A network shorter than 5 squares gets none. A train held up by another one for 8 seconds starts again at the start.
+  A network shorter than 5 squares gets none. A train that is somehow held up for 12 seconds starts again somewhere
+  free.
 - Where rails cross a road, barriers come down while a train goes past, and the cars wait in front of them.
 - Disasters take train cars like other vehicles (tornado, tsunami, meteor, black hole, the kaiju and the army's
-  strikes). The rest of a train that lost a car stops, fades away after a moment, and a new train comes back at the
-  start. A ruined station sends no more trains until it is repaired.
+  strikes). The rest of a train that lost a car stops, fades away after a moment, and a new train comes back
+  somewhere free on the rails. A ruined station sends no more trains until it is repaired.
 - Every Future lab brings 10 hover cars (30 at most, and no more than one per 3 road squares) on top of the
   cars; 5 of them are on the road at once when it is built or the city is opened. They fly over the road and
   over the cars, with a shadow on the road under them.
