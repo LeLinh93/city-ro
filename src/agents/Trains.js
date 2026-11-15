@@ -10,6 +10,8 @@ import { vehicleSprite, faceVehicle, hasVehicle } from './vehicleArt.js';
 // How many trains a network gets depends on how long it is (not on how many stations it has), and each kind of
 // station on it gets its own kind of train if the network is long enough for them all.
 // Where a railway crosses a road, barriers come down while a train goes past and the cars wait (see Traffic).
+// Disasters take train cars like any other vehicle (see Disasters.near): the rest of that train stops, fades away
+// after a moment and a new train comes back at the start of the line.
 
 const TOP_SPEED = 2.2; // squares per second
 const ACCEL = 0.8; // squares per second²
@@ -25,6 +27,7 @@ const MIN_RAIL = 5; // shorter networks get no train
 const CLOSE_AHEAD = 3.2; // squares before a train reaches a crossing that its barriers come down
 const CLOSE_BEHIND = 0.4; // and squares after its last wagon has left that they go up again
 const GATE_MS = 700; // ms for a barrier to come down or go up
+const WRECK_MS = 2500; // ms what is left of a train hit by a disaster stands there before it fades away
 
 const PORT = { ne: [0.5, 0], se: [1, 0.5], sw: [0.5, 1], nw: [0, 0.5] };
 const OPP = { ne: 'sw', sw: 'ne', se: 'nw', nw: 'se' };
@@ -144,13 +147,18 @@ export class Trains {
 
   // ---------- a train ----------
 
-  spawn(net, kind) {
-    const cars = ['engine', 'wagon', 'wagon'].map((part) => {
+  // An engine and two wagons of the kind's pictures.
+  makeCars(kind) {
+    return ['engine', 'wagon', 'wagon'].map((part) => {
       const id = `train_${kind}_${part}`;
       const v = vehicleSprite(this.scene, id, { key: 'police_car', origin: { x: 0.5, y: 0.5 } });
       v.im.setAlpha(0);
       return { v, len: Math.max(0.6, v.im.width / 64 - 0.3) };
     });
+  }
+
+  spawn(net, kind) {
+    const cars = this.makeCars(kind);
     const len = cars.reduce((a, c) => a + c.len, 0) + GAP * (cars.length - 1);
     const t = { kind, net: net.id, cars, len, state: 'hidden', alpha: 0, v: 0, stuck: 0 };
     this.trains.push(t);
@@ -321,6 +329,7 @@ export class Trains {
     if (t.state === 'gone') return;
     t.state = 'gone';
     for (const c of t.cars) {
+      if (c.taken) continue; // a disaster has it
       this.scene.tweens.add({ targets: c.v.im, alpha: 0, duration: 300, onComplete: () => c.v.im.destroy() });
     }
   }
@@ -371,6 +380,11 @@ export class Trains {
         t.alpha = 0;
         t.state = 'hidden';
         for (const c of t.cars) c.at = null;
+        if (t.cars.some((c) => c.taken)) {
+          // what was left of a wreck: a whole new train comes back
+          for (const c of t.cars) if (!c.taken) c.v.im.destroy();
+          t.cars = this.makeCars(t.kind);
+        }
         this.place(t);
       }
       this.render(t, time);
@@ -379,6 +393,11 @@ export class Trains {
     if (t.fadeIn) {
       t.alpha = Math.min(1, t.alpha + dt * 1000 / FADE_MS);
       if (t.alpha >= 1) t.fadeIn = false;
+    }
+    if (t.state === 'wreck') {
+      if (time > t.until) t.state = 'fade';
+      this.render(t, time);
+      return;
     }
     if (t.state === 'dwell') {
       if (time > t.until) t.state = 'run';
@@ -432,6 +451,10 @@ export class Trains {
   render(t, time) {
     let back = t.s;
     for (const c of t.cars) {
+      if (c.taken) {
+        back -= c.len + GAP;
+        continue;
+      }
       const mid = back - c.len / 2;
       const p = this.pointAt(t, mid);
       const f = this.pointAt(t, mid + c.len / 2);
@@ -442,6 +465,37 @@ export class Trains {
       c.v.im.setPosition(Math.round(pos.x), Math.round(pos.y)).setDepth(p.x + p.y + 0.3).setAlpha(t.alpha);
       back -= c.len + GAP;
     }
+  }
+
+  // ---------- disasters ----------
+
+  // Every train car on the map: [{ t, c, x, y }] (grid coordinates of its middle).
+  carsOnMap() {
+    const out = [];
+    for (const t of this.trains) {
+      if (t.state === 'hidden' || t.state === 'gone') continue;
+      for (const c of t.cars) if (!c.taken && c.at && t.alpha > 0.3) out.push({ t, c, x: c.at.x, y: c.at.y });
+    }
+    return out;
+  }
+
+  // A disaster takes one car (it gets the picture to carry off). The rest of the train stops where it is.
+  takeCar(t, c) {
+    if (c.taken || t.state === 'gone' || t.state === 'hidden') return null;
+    c.taken = true;
+    c.at = null;
+    if (t.state !== 'fade') {
+      t.state = 'wreck';
+      t.v = 0;
+      t.until = this.scene.time.now + WRECK_MS;
+    }
+    if (t.cars.every((x) => x.taken)) {
+      // nothing left: a new one comes back at the start
+      t.state = 'hidden';
+      t.alpha = 0;
+      t.cars = this.makeCars(t.kind);
+    }
+    return c.v.im;
   }
 
   // People get off into the station and others come out to get on.

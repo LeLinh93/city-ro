@@ -84,7 +84,7 @@ export class Disasters {
     return { x0, y0, x1, y1 };
   }
 
-  // People, cars, zombies and soldiers within r squares of (x, y): in a circle, or with square = true in the
+  // People, cars, train cars, zombies and soldiers within r squares of (x, y): in a circle, or with square = true in the
   // square 2r x 2r round it.
   near(x, y, r, square = false) {
     const inside = square ? (px, py) => Math.abs(px - x) < r && Math.abs(py - y) < r : (px, py) => Math.hypot(px - x, py - y) < r;
@@ -93,6 +93,7 @@ export class Disasters {
     for (const c of this.traffic.cars) if (!c.leaving && inside(c.mover.px, c.mover.py)) out.push({ kind: 'car', a: c });
     for (const z of this.zombies?.list || []) if (!z.dead && inside(z.x, z.y)) out.push({ kind: 'zombie', a: z });
     for (const s of this.military?.soldiers.list || []) if (!s.dead && inside(s.mover.px, s.mover.py)) out.push({ kind: 'soldier', a: s });
+    for (const tc of this.trains?.carsOnMap() || []) if (inside(tc.x, tc.y)) out.push({ kind: 'train', a: tc });
     return out;
   }
 
@@ -101,6 +102,7 @@ export class Disasters {
     if (t.kind === 'person') return this.people.take(t.a);
     if (t.kind === 'zombie') return this.zombies.take(t.a);
     if (t.kind === 'soldier') return this.military.soldiers.take(t.a);
+    if (t.kind === 'train') return this.trains.takeCar(t.a.t, t.a.c);
     this.military?.lostCar(t.a);
     return this.traffic.take(t.a);
   }

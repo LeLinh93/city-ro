@@ -73,6 +73,7 @@ export class GameScene extends Phaser.Scene {
     // disasters can take zombies and soldiers too (they are made after the disasters)
     this.disasters.zombies = this.zombies;
     this.disasters.military = this.military;
+    this.disasters.trains = this.trains;
     this.ghost = new Ghost(this);
 
     world.on('building-added', (b, silent) => {

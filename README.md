@@ -126,6 +126,9 @@ What moves on its own:
   one plus one per 30 squares (but at least one of each station kind when the network is long enough for them all).
   A network shorter than 5 squares gets none. A train held up by another one for 8 seconds starts again at the start.
 - Where rails cross a road, barriers come down while a train goes past, and the cars wait in front of them.
+- Disasters take train cars like other vehicles (tornado, tsunami, meteor, black hole, the kaiju and the army's
+  strikes). The rest of a train that lost a car stops, fades away after a moment, and a new train comes back at the
+  start. A ruined station sends no more trains until it is repaired.
 - Every Future lab brings 10 hover cars (30 at most, and no more than one per 3 road squares) on top of the
   cars; 5 of them are on the road at once when it is built or the city is opened. They fly over the road and
   over the cars, with a shadow on the road under them.

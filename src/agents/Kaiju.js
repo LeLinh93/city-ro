@@ -395,6 +395,12 @@ export class Kaiju {
         this.military.fade(this.disasters.traffic.take(c));
         this.military.sparks.emitParticleAt(toWorld(c.mover.px, c.mover.py).x, toWorld(c.mover.px, c.mover.py).y, 6);
       }
+      for (const tc of this.disasters.trains?.carsOnMap() || []) {
+        if (!inBox(tc.x, tc.y)) continue;
+        this.military.fade(this.disasters.trains.takeCar(tc.t, tc.c));
+        const p = toWorld(tc.x, tc.y);
+        this.military.sparks.emitParticleAt(p.x, p.y, 6);
+      }
       for (const u of this.military.units(time)) {
         if (!inBox(u.ground.x, u.ground.y)) continue;
         u.kill(); // planes over it (tanks are done above)
