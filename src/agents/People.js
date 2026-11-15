@@ -98,6 +98,23 @@ export class People {
     this.render(p);
   }
 
+  // Someone who walks straight from one point to the next (grid coordinates) and goes away at the last one:
+  // passengers getting off a train into the station, or out of the station onto the train.
+  walkLine(points) {
+    if (this.list.length >= MAX_PEOPLE || points.length < 2) return;
+    const [first, ...rest] = points;
+    const mover = new Mover(first.x, first.y, { speed: SPEED.person * (0.85 + Math.random() * 0.3), lane: 0 });
+    for (const pt of rest) mover.push(pt.x, pt.y, false);
+    const key = pick(this.variants);
+    const tex = this.scene.textures.get(key);
+    const perRow = Math.max(1, Math.floor((tex.frameTotal - 1) / 2));
+    const sprite = this.scene.add.image(0, 0, key, 0).setOrigin(0.5, 1).setAlpha(0);
+    this.scene.tweens.add({ targets: sprite, alpha: 1, duration: 250 });
+    const p = { sprite, mover, perRow };
+    this.list.push(p);
+    this.render(p);
+  }
+
   render(p) {
     const m = p.mover;
     const pos = toWorld(m.px, m.py);

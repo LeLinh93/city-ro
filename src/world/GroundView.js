@@ -2,6 +2,7 @@ import { DEPTH, GROUND, GROUND_NAMES, HW, HH, SIDES, SIDE_LIST } from '../consta
 import { toGrid, viewRect } from '../iso.js';
 import { genShores, SHORE_KINDS } from '../art/placeholders.js';
 import { addPix } from '../scenes/BootScene.js';
+import { genRail } from '../art/rails.js';
 
 // Draws only the squares that are on screen (ground, shore edges, roads),
 // reusing a pool of images. A 100 x 100 map would otherwise be ~15,000 images.
@@ -39,6 +40,7 @@ export class GroundView {
     this.checker = reg.get('checkerGrass');
     this.drawn = new Map(); // edge texture key -> drawn by code (no picture file)
     world.on('road-added', (i, j) => this.roadAnims.set(world.idx(i, j), scene.time.now));
+    world.on('rail-added', (i, j) => this.roadAnims.set(world.idx(i, j), scene.time.now));
   }
 
   img(key, frame) {
@@ -76,6 +78,13 @@ export class GroundView {
   shoreKey(parts) {
     const key = `shores_${parts.map(([kind, part]) => `${kind}-${part}`).join('_')}`;
     if (!this.scene.textures.exists(key)) addPix(this.scene, key, genShores(parts));
+    return key;
+  }
+
+  // The picture of a railway square with rail neighbours mask (crossing: it lies across a road), made when first needed.
+  railKey(mask, crossing) {
+    const key = `rail_${mask}${crossing ? 'x' : ''}`;
+    if (!this.scene.textures.exists(key)) addPix(this.scene, key, genRail(mask, crossing));
     return key;
   }
 
@@ -164,16 +173,19 @@ export class GroundView {
             }
           }
 
-          // roads
+          // roads and rails drop into place when they are laid
+          const t0 = this.roadAnims.get(k);
+          let dy = 0;
+          let alpha = 1;
+          if (t0 !== undefined) {
+            const p = Math.min(1, (time - t0) / 260);
+            dy = -(1 - p) * (1 - p) * 14;
+            alpha = 0.4 + 0.6 * p;
+          }
+          if (w.rail[k]) {
+            this.img(this.railKey(w.railMask(i, j), !!w.road[k])).setPosition(cx, cy + dy).setDepth(DEPTH.RAIL).setAlpha(alpha);
+          }
           if (w.road[k]) {
-            const t0 = this.roadAnims.get(k);
-            let dy = 0;
-            let alpha = 1;
-            if (t0 !== undefined) {
-              const p = Math.min(1, (time - t0) / 260);
-              dy = -(1 - p) * (1 - p) * 14;
-              alpha = 0.4 + 0.6 * p;
-            }
             const mask = w.roadMask(i, j);
             const full = this.roadTiles[mask];
             if (full) {

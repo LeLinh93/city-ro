@@ -59,6 +59,9 @@ export const CITY = {
     carpark: 'Car park',
     oilrefinery: 'Oil refinery',
     gasstation: 'Gas station',
+    trainstation_us: 'US train station',
+    trainstation_eu: 'EU train station',
+    trainstation_jp: 'JP train station',
   },
 
   // Extra settings for single buildings, by file name (without the size).
@@ -175,6 +178,10 @@ export const CITY = {
     },
     // rocket: a rocket stands on the pad (px, py = the middle of the ring, in the picture's own pixels), launches
     //         straight up into space and a new one is put on the pad after rest = [min, max] ms (src/agents/Rockets.js)
+    // train: the kind of train it sends onto the rails touching it (src/agents/Trains.js): 'us', 'eu' or 'jp'
+    trainstation_us: { train: 'us' },
+    trainstation_eu: { train: 'eu' },
+    trainstation_jp: { train: 'jp' },
     futurelab: { hovercars: { count: 10, start: 5 } }, // hover cars it brings (on top of the cars), and how many come at once
     rocketpad: { rocket: { px: 198, py: 142, rest: [25000, 45000] }, lights: false, beacons: [{ px: 287, py: 7 }] },
     antenna: { beacons: [{ px: 64, py: 3 }] },

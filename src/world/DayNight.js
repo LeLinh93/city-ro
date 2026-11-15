@@ -247,7 +247,7 @@ export class DayNight {
   // ---------- vehicle lights ----------
 
   addVehicle(v, id) {
-    if (id === 'ufo') return; // glows by itself
+    if (id === 'ufo' || /_wagon$/.test(id)) return; // the UFO glows by itself; train wagons have no lights
     const kind = /^heli|^airplane|^fighterjet|^bomber/.test(id) ? 'air' : /ship$|^destroyer|carrier$/.test(id) ? 'ship' : 'car';
     this.vehicles.add({ v, kind, size: VEHICLES[id]?.width ?? 50, ims: null, shown: false });
   }

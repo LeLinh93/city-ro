@@ -117,8 +117,15 @@ export class Traffic {
   }
 
   // Simple queueing: wait if another car is just ahead in the same lane.
+  // A car waits in front of a level crossing while its barriers are down, and the cars behind it wait too
+  // (however long it takes; other hold-ups are given up after a moment so cars never get stuck).
   blocked(c, dt) {
     const m = c.mover;
+    c.held = false;
+    if (!c.hover && this.atGate(c)) {
+      c.held = true;
+      return true;
+    }
     for (const o of this.cars) {
       if (o === c || o.leaving || !o.hover !== !c.hover) continue; // hover cars fly over the cars
       const dx = o.mover.px - m.px;
@@ -127,12 +134,28 @@ export class Traffic {
       const side = Math.abs(-dx * m.dir[1] + dy * m.dir[0]);
       // long vehicles (buses, trucks) keep more room
       if (along > 0.05 && along < (c.len + o.len) / 2 + 0.1 && side < 0.14) {
+        if (o.held) {
+          c.held = true;
+          return true;
+        }
         c.wait = (c.wait || 0) + dt;
         if (c.wait < 1.2) return true;
       }
     }
     c.wait = 0;
     return false;
+  }
+
+  // Is the car about to drive onto a level crossing whose barriers are down? (One already on it drives off.)
+  atGate(c) {
+    const tr = this.trains;
+    const t = c.mover.queue[0];
+    if (!tr?.closed.size || !t) return false;
+    const i = Math.floor(t.x);
+    const j = Math.floor(t.y);
+    if (!this.world.inBounds(i, j) || !tr.isClosed(this.world.idx(i, j))) return false;
+    if (Math.floor(c.mover.x) === i && Math.floor(c.mover.y) === j) return false;
+    return Math.hypot(t.x - c.mover.x, t.y - c.mover.y) > 0.72;
   }
 
   // id: vehicle picture (src/data/vehicles.js); fallbackKey: code-drawn stand-in if that picture is missing.

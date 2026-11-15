@@ -16,12 +16,14 @@ export class World {
     this.tjx = m.tjx;
     this.tjy = m.tjy;
     this.road = new Uint8Array(size * size);
+    this.rail = new Uint8Array(size * size); // railway; a square with both is a level crossing
     this.bldg = new Int32Array(size * size); // building id, 0 = none
     this.buildings = new Map();
     this.nextId = 1;
     this.clearedTrees = new Set();
     this.version = 0; // bumps on every change so views know to redraw
     this.roadCount = 0;
+    this.railCount = 0;
     this.listeners = {};
   }
 
@@ -69,6 +71,19 @@ export class World {
     return id ? this.buildings.get(id) : null;
   }
 
+  isRail(i, j) {
+    return this.inBounds(i, j) && this.rail[this.idx(i, j)] === 1;
+  }
+
+  railMask(i, j) {
+    let m = 0;
+    for (const s of SIDE_LIST) {
+      const d = SIDES[s];
+      if (this.isRail(i + d.dx, j + d.dy)) m |= d.bit;
+    }
+    return m;
+  }
+
   roadMask(i, j) {
     let m = 0;
     for (const s of SIDE_LIST) {
@@ -94,7 +109,7 @@ export class World {
   canPaint(i, j, g) {
     if (!this.inBounds(i, j)) return false;
     const k = this.idx(i, j);
-    return g !== GROUND.WATER || (!this.road[k] && !this.bldg[k]);
+    return g !== GROUND.WATER || (!this.road[k] && !this.rail[k] && !this.bldg[k]);
   }
 
   // quiet: don't announce the change (when painting many squares at once, call changed() after)
@@ -136,6 +151,35 @@ export class World {
     return true;
   }
 
+  // ---------- railways ----------
+
+  // Rails go on empty land, or across a road (a level crossing, the rails on top).
+  canPlaceRail(i, j) {
+    if (!this.inBounds(i, j) || this.isWater(i, j)) return false;
+    const k = this.idx(i, j);
+    return !this.rail[k] && !this.bldg[k];
+  }
+
+  addRail(i, j) {
+    if (!this.canPlaceRail(i, j)) return false;
+    const k = this.idx(i, j);
+    this.clearTree(i, j);
+    this.rail[k] = 1;
+    this.railCount++;
+    this.emit('rail-added', i, j);
+    this.changed();
+    return true;
+  }
+
+  removeRail(i, j) {
+    if (!this.isRail(i, j)) return false;
+    this.rail[this.idx(i, j)] = 0;
+    this.railCount--;
+    this.emit('rail-removed', i, j);
+    this.changed();
+    return true;
+  }
+
   // ---------- buildings ----------
 
   footprint(type, rot) {
@@ -164,7 +208,7 @@ export class World {
       for (let i = x; i < x + f.w; i++) {
         if (!this.inBounds(i, j) || this.isWater(i, j)) return false;
         const k = this.idx(i, j);
-        if (this.road[k] || this.bldg[k]) return false;
+        if (this.road[k] || this.rail[k] || this.bldg[k]) return false;
       }
     }
     if (BUILDINGS[type].nearWater && !this.waterSides(x, y, f.w, f.d).length) return false;
@@ -270,12 +314,15 @@ export class World {
   serialize() {
     const roads = [];
     for (let k = 0; k < this.road.length; k++) if (this.road[k]) roads.push(k);
+    const rails = [];
+    for (let k = 0; k < this.rail.length; k++) if (this.rail[k]) rails.push(k);
     return {
       v: 1,
       seed: this.seed,
       // the whole ground as one digit per square, once the player has painted it
       ground: this.painted ? this.ground.join('') : undefined,
       roads,
+      rails: rails.length ? rails : undefined,
       trees: [...this.clearedTrees],
       // [type, x, y, rot, w, d, ruined]: the size is kept so a building that got bigger in a new version can be dropped
       buildings: [...this.buildings.values()].map((b) => (b.ruined
@@ -303,6 +350,12 @@ export class World {
       if (!w.road[k]) {
         w.road[k] = 1;
         w.roadCount++;
+      }
+    }
+    for (const k of data.rails || []) {
+      if (k >= 0 && k < w.rail.length && !w.rail[k] && w.ground[k] !== GROUND.WATER) {
+        w.rail[k] = 1;
+        w.railCount++;
       }
     }
     w.pendingBuildings = (data.buildings || []).filter((b) => w.stillFits(b));

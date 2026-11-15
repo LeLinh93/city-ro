@@ -18,6 +18,7 @@ import { Controls } from '../input/Controls.js';
 import { Ufo } from '../agents/Ufo.js';
 import { Kaiju } from '../agents/Kaiju.js';
 import { Rockets } from '../agents/Rockets.js';
+import { Trains } from '../agents/Trains.js';
 import { Zombies } from '../agents/Zombies.js';
 import { Military } from '../agents/Military.js';
 import { loadCity, saveCity } from '../saves.js';
@@ -62,6 +63,8 @@ export class GameScene extends Phaser.Scene {
     this.rockets = new Rockets(this, world);
     this.services = new Services(this, world, this.traffic);
     this.people = new People(this, world, this.pf);
+    this.trains = new Trains(this, world, { people: this.people });
+    this.traffic.trains = this.trains; // cars wait at level crossings
     this.disasters = new Disasters(this, world, { people: this.people, traffic: this.traffic, services: this.services });
     this.military = new Military(this, world, { services: this.services, traffic: this.traffic, ships: this.ships, disasters: this.disasters });
     this.ufo = new Ufo(this, world, { military: this.military, disasters: this.disasters });
@@ -133,6 +136,7 @@ export class GameScene extends Phaser.Scene {
     this.ground.update(time);
     this.fx.update(time);
     this.people.update(time, dt);
+    this.trains.update(time, dt);
     this.traffic.update(time, dt);
     this.airports.update(time, dt);
     this.ships.update(time, dt);
@@ -163,7 +167,7 @@ export class GameScene extends Phaser.Scene {
       this.showArea(action.area);
       return;
     }
-    if (this.tool === 'road') {
+    if (this.tool === 'road' || this.tool === 'rail') {
       action.added = [];
       this.paintRoad(sq, action);
     } else if (this.tool === 'bulldoze') {
@@ -185,7 +189,7 @@ export class GameScene extends Phaser.Scene {
 
   toolDrag(sq, action) {
     this.lastHover = sq;
-    if (this.tool === 'road') this.paintRoad(sq, action);
+    if (this.tool === 'road' || this.tool === 'rail') this.paintRoad(sq, action);
     else if (this.tool === 'bulldoze') {
       this.bulldoze(sq);
       this.ghost.showSquares([sq], false);
@@ -256,6 +260,9 @@ export class GameScene extends Phaser.Scene {
     if (action.tool === 'road' && young && action.added) {
       for (const [i, j] of action.added) this.world.removeRoad(i, j);
     }
+    if (action.tool === 'rail' && young && action.added) {
+      for (const [i, j] of action.added) this.world.removeRail(i, j);
+    }
     if (young && action.painted) {
       for (const [i, j, g] of action.painted.reverse()) this.world.paintGround(i, j, g);
     }
@@ -270,6 +277,7 @@ export class GameScene extends Phaser.Scene {
     this.lastHover = sq;
     if (BUILDINGS[this.tool]) return; // the waiting building stays where it is
     if (this.tool === 'road') this.ghost.showSquares([sq], this.world.canPlaceRoad(...sq));
+    else if (this.tool === 'rail') this.ghost.showSquares([sq], this.world.canPlaceRail(...sq));
     else if (this.tool === 'bulldoze') this.ghost.showSquares([sq], false);
     else if (this.tool === 'select') this.ghost.showSquares([sq], true);
     else if (paintGround(this.tool) !== null) this.ghost.showSquares([sq], this.world.canPaint(...sq, paintGround(this.tool)));
@@ -307,8 +315,10 @@ export class GameScene extends Phaser.Scene {
     this.ghost.showSquares([sq], ok);
   }
 
+  // Road and Rail tools: lay a square of road or railway (a railway can cross a road).
   paintRoad(sq, action) {
-    if (this.world.addRoad(...sq)) {
+    const w = this.world;
+    if (this.tool === 'rail' ? w.addRail(...sq) : w.addRoad(...sq)) {
       action.added.push(sq);
       this.fx.dustSquares([sq]);
     }
@@ -572,7 +582,7 @@ export class GameScene extends Phaser.Scene {
     const w = this.world;
     const b = w.buildingAt(i, j);
     if (b) w.removeBuilding(b.id);
-    else if (w.removeRoad(i, j)) this.fx.dustSquares([[i, j]]);
+    else if (w.removeRail(i, j) || w.removeRoad(i, j)) this.fx.dustSquares([[i, j]]); // on a crossing the rails go first
   }
 
   cameraMoved() {}

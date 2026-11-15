@@ -16,6 +16,7 @@ export const DEPTH = {
   EDGE: -99990,
   ROAD: -99980,
   ROAD_ARM: -99979,
+  RAIL: -99978, // on top of the roads: rails cross them
   BASE: -99970, // flat building parts, e.g. the airport runway
   SHADOW: -99960,
   OUTLINE: -99950,

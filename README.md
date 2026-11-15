@@ -52,13 +52,13 @@ when the rain starts), disasters' fires too.
 |---|---|
 | ✋ Move | Drag to look around. Two fingers pinch to zoom (works with every tool). |
 | 🔳 Select | Drag a box: every building touching it is picked up. Drag the group somewhere else (red = doesn't fit), then ✔ puts them all down or ✖ puts them back. Groups don't turn. |
-| 🛣️ Road | Drag to draw roads. They go straight along the grid; move sideways to turn a corner. Tap Road again to go back to Move. |
+| 🛣️ Road | Opens a menu with Road and Rail (Road is picked first). Drag to draw roads or lay rails. They go straight along the grid; move sideways to turn a corner. Rails can be laid across a road (a level crossing). Tap Road again to go back to Move. |
 | 🖌️ Plot | Pick grass, sand, water or pavement, then tap or drag to paint the ground. Water can't go under roads or buildings. |
 | 🏠 🏪 🏥 🗼 ✈️ … | Opens that group's buildings in one row (swipe sideways for more). Tap one (it appears in the middle) or drag it onto the map: drag up, drag out of the menu in any direction, or hold it a moment and then drag. |
 | 🌳 Decoration | Works like Plot: pick one, then tap or drag on the map to put them down. The menu stays open until you tap 🌳 again. |
 | ⚡ Disaster | 🏚️ Earthquake, 🌪️ Tornado, 🌊 Tsunami, ☄️ Meteor or 🌋 Volcano. While it lasts, the build bar is locked and buildings can't be picked up (looking around and zooming still work); the red ⏹ Stop disaster button at the top middle ends it straight away. |
 | 🔧 Repair | Fixes every ruined building and puts out every fire. |
-| 🚜 Remove | Tap or drag over roads and buildings. Only the squares a building stands on count, so a tall building is not removed by touching its roof. Tap Remove again to go back to Move. |
+| 🚜 Remove | Tap or drag over roads, rails and buildings (on a level crossing the rails go first). Only the squares a building stands on count, so a tall building is not removed by touching its roof. Tap Remove again to go back to Move. |
 
 Tapping the button of the menu that is open closes it and goes back to ✋ Move. The Plot menu also stays open
 while you paint. Plot and Decoration start with two modes: 🖌️ Brush (tap or drag, square by square) and
@@ -118,6 +118,14 @@ until 🔧 Repair. Ruins can't be moved, but 🚜 Remove clears them.
 What moves on its own:
 - People walk out of doors, use sidewalks (or cut across grass), and walk into other buildings.
 - Cars drive on the right-hand lane of every road and queue behind each other.
+- Rails are a narrow track (a little more than half a square wide) down the middle of the squares, curving round
+  corners. A train station (US, EU or JP, in Transport) next to the rails sends trains of its own kind onto that rail
+  network: an engine and two wagons. Trains stop at every station they pass, people get off and on, and they drive
+  on. On a line with ends a train disappears at the end and comes back at the start; on a loop it keeps going round.
+  How many trains a network gets depends on its length, not on its stations: one per 11 rail squares at most, and
+  one plus one per 30 squares (but at least one of each station kind when the network is long enough for them all).
+  A network shorter than 5 squares gets none. A train held up by another one for 8 seconds starts again at the start.
+- Where rails cross a road, barriers come down while a train goes past, and the cars wait in front of them.
 - Every Future lab brings 10 hover cars (30 at most, and no more than one per 3 road squares) on top of the
   cars; 5 of them are on the road at once when it is built or the city is opened. They fly over the road and
   over the cars, with a shadow on the road under them.

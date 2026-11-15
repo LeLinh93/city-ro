@@ -50,6 +50,13 @@ export const VEHICLES = {
   oiltanker: { sheet: 'oiltanker-sheet.png', width: 352 },
   // the hover car: some of the traffic flies once the city has a Future lab
   hovercar: { sheet: 'hovercar-sheet.png', width: 56 },
+  // trains: an engine and its wagons, one kind for each kind of train station
+  train_us_engine: { sheet: 'ustrain-engine-sheet.png', width: 88 },
+  train_us_wagon: { sheet: 'ustrain-wagon-sheet.png', width: 86 },
+  train_eu_engine: { sheet: 'eurotrain-engine-sheet.png', width: 88 },
+  train_eu_wagon: { sheet: 'eurotrain-wagon-sheet.png', width: 86 },
+  train_jp_engine: { sheet: 'bullettrain-engine-sheet.png', width: 88 },
+  train_jp_wagon: { sheet: 'bullettrain-wagon-sheet.png', width: 86 },
   // the UFO (a disaster): 6 squares wide
   ufo: { sheet: 'disaster/mothership-sheet.png', width: 768, ground: 'center' },
 };

@@ -90,7 +90,7 @@ export class Controls {
     if (this.action && this.action.pointer === p.id) {
       const a = this.action;
       let [ti, tj] = sq;
-      if (a.tool === 'road') {
+      if (a.tool === 'road' || a.tool === 'rail') {
         // Roads go in straight lines along the grid. Moving sideways (not diagonally) turns a corner.
         a.anchor ||= a.last;
         const di = ti - a.anchor[0];

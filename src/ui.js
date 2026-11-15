@@ -6,7 +6,9 @@ const HINTS = {
   hand: 'Drag to move around. Tap a building to move it. Pinch with two fingers to zoom.',
   select: 'Drag a box around buildings to pick them all up and move them together.',
   group: 'Drag them to move them. ✔ puts them down, ✖ puts them back.',
+  roads: 'Pick a road or a railway.',
   road: 'Drag your finger to draw roads.',
+  rail: 'Drag your finger to lay rails. They can cross roads. A train station next to the rails sends trains.',
   bulldoze: 'Tap or drag to remove things.',
   menu: 'Tap a building, or drag it up onto the map.',
   plot: 'Pick a ground to paint with.',
@@ -39,6 +41,11 @@ const PAINTS = [
   { paint: 'sand', name: 'Sand', texture: 'sand_0' },
   { paint: 'water', name: 'Water', texture: 'water_0' },
   { paint: 'pavement', name: 'Pavement', texture: 'pavement_0' },
+];
+// The Road menu: roads and railways.
+const ROADS = [
+  { tool: 'road', name: 'Road', icon: '🛣️' },
+  { tool: 'rail', name: 'Rail', icon: '🛤️' },
 ];
 // At the front of the Plot and Decoration menus: how to put things down.
 const MODES = [
@@ -241,7 +248,12 @@ export class UI {
     this.buttons.clear();
     this.button('hand', '✋', 'Move', () => this.select('hand'));
     this.button('select', '🔳', 'Select', () => this.toggleTool('select'));
-    this.button('road', '🛣️', 'Road', () => this.toggleTool('road'));
+    this.button('road', '🛣️', 'Road', () => {
+      const open = this.openMenu === 'road';
+      this.toggleMenu('road', ROADS, false, HINTS.roads);
+      // the menu opens with Road picked; Rail is one tap away
+      if (!open && this.scene && this.scene.tool !== 'rail') this.pick(ROADS[0]);
+    });
     const plot = PAINTS.map((p) => ({ ...p, url: this.scene.textures.getBase64(p.texture, 0) }));
     this.button('plot', '🖌️', 'Plot', () => this.toggleMenu('plot', plot, true, HINTS.plot));
     for (const m of MENUS) {
@@ -278,6 +290,7 @@ export class UI {
   // Which build bar button a tool belongs to.
   buttonFor(id) {
     if (isPaint(id)) return 'plot';
+    if (id === 'rail') return 'road';
     const def = BUILDINGS[isDeco(id) ? id.slice(5) : id];
     return def ? `menu:${def.menu}` : id;
   }
@@ -287,7 +300,7 @@ export class UI {
     for (const [k, b] of this.buttons) b.classList.toggle('active', k === key || k === this.openMenu);
     for (const item of this.sub.children) {
       const d = item.def;
-      item.classList.toggle('active', !!d && (id === `paint:${d.paint}` || id === `deco:${d.id}`
+      item.classList.toggle('active', !!d && (id === d.tool || id === `paint:${d.paint}` || id === `deco:${d.id}`
         || (!!d.mode && d.mode === this.scene?.paintMode)));
     }
   }
@@ -326,7 +339,7 @@ export class UI {
       name.textContent = def.name;
       const size = document.createElement('span');
       size.className = 'size';
-      size.textContent = def.paint || def.action || def.mode ? '' : `${def.w}×${def.d}`;
+      size.textContent = def.paint || def.action || def.mode || def.tool ? '' : `${def.w}×${def.d}`;
       item.append(pic, name, size);
       item.def = def;
       this.sub.appendChild(item);
@@ -388,6 +401,13 @@ export class UI {
       this.showHint(def.mode === 'brush' ? HINTS.brush : this.openMenu === 'plot' ? HINTS.area : HINTS.areaDeco);
       return;
     }
+    if (def.tool) {
+      // Road or Rail: draw with it; the menu stays open to switch between them
+      this.scene.setTool(def.tool);
+      this.highlight(def.tool);
+      this.showHint(HINTS[def.tool]);
+      return;
+    }
     if (def.action === 'ufo' || def.action === 'kaiju' || def.action === 'zombies') {
       // the UFO, the kaiju and the zombies don't lock the build bar: they are not disasters that have to finish
       this.select('hand', false);
@@ -419,7 +439,7 @@ export class UI {
   dragMove(e) {
     const d = this.drag;
     if (!d || e.pointerId !== d.id || !this.scene) return;
-    const carriable = d.def && !d.def.paint && !d.def.action && !d.def.mode && !this.painter;
+    const carriable = d.def && !d.def.paint && !d.def.action && !d.def.mode && !d.def.tool && !this.painter;
     if (d.scroll !== null) {
       // scrolling the menu, until the finger leaves it upwards onto the map: then the building comes along
       if (carriable && e.clientY < this.sub.getBoundingClientRect().top - 8) {
