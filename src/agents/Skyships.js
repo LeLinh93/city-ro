@@ -16,8 +16,8 @@ const SHIP_RISE = 45; // px per second, rising from the port
 const SHIP_SPEED = 0.8; // squares per second
 const EDGE = 6; // squares: battleships keep this far inside the map
 
-const DRONE_ALT = 120; // px
-const DRONE_CLIMB = 70; // px per second
+const DRONE_ALT = 180; // px
+const DRONE_CLIMB = 100; // px per second
 const DRONE_SPEED = 2.4; // squares per second
 const MINE_MS = 3200; // the laser breaking a rock up
 const UNLOAD_MS = 2400;
@@ -162,7 +162,7 @@ export class Skyships {
     for (let j = 1; j < w.size - 1; j++) {
       for (let i = 1; i < w.size - 1; i++) {
         if (!w.isWater(i, j) || !open(i, j)) continue;
-        if (this.rocks.some((r) => Math.abs(r.i - i) < 4 && Math.abs(r.j - j) < 4)) continue;
+        if (this.rocks.some((r) => Math.abs(r.i - i) < 5 && Math.abs(r.j - j) < 5)) continue;
         list.push([Math.hypot(i + 0.5 - cx, j + 0.5 - cy), i, j]);
       }
     }
@@ -188,7 +188,7 @@ export class Skyships {
     // floats on the lava, rising and falling a little; shakes while the laser is on it
     const shake = r.hit ? rand(-1.5, 1.5) : 0;
     r.im.setPosition(r.x + shake, r.y + Math.sin(time / 700 + r.phase) * 2.5);
-    r.im.setScale(1.5 * (1 - r.hit * 0.35));
+    r.im.setScale(2.4 * (1 - r.hit * 0.35));
   }
 
   stepDrone(m, time, dt) {
@@ -257,18 +257,18 @@ export class Skyships {
         r.hit = 1 - Math.max(0, d.until - time) / MINE_MS;
         // the laser: from under the drone down to the rock
         const fx = d.x;
-        const fy = d.y - d.alt + 18;
+        const fy = d.y - d.alt + 28;
         const flick = 0.7 + Math.random() * 0.3;
         this.g.lineStyle(6, CYAN, 0.35 * flick);
-        this.g.lineBetween(fx, fy, r.x, r.y - 12);
+        this.g.lineBetween(fx, fy, r.x, r.y - 20);
         this.g.lineStyle(2, 0xe6fbff, flick);
-        this.g.lineBetween(fx, fy, r.x, r.y - 12);
-        if (Math.random() < 0.5) this.sparks.emitParticleAt(r.x + rand(-10, 10), r.y - 12 + rand(-6, 6), 1);
+        this.g.lineBetween(fx, fy, r.x, r.y - 20);
+        if (Math.random() < 0.5) this.sparks.emitParticleAt(r.x + rand(-10, 10), r.y - 20 + rand(-10, 10), 1);
         if (time > d.until) {
           // broken up: the crystals go up into the drone's hold, the rock is gone
           this.removeRock(r, true);
           d.rock = null;
-          d.cargo = this.scene.add.image(d.x, fy, 'space_crystal').setOrigin(0.5, 0).setScale(1.3);
+          d.cargo = this.scene.add.image(d.x, fy, 'space_crystal').setOrigin(0.5, 0).setScale(2);
           d.state = 'back';
         }
         break;
@@ -312,7 +312,7 @@ export class Skyships {
     faceVehicle(d.v, d.dir[0], d.dir[1]);
     d.v.im.setPosition(Math.round(d.x), Math.round(d.y - d.alt + bob));
     d.v.im.setDepth(flying ? DEPTH.AIR + d.alt : m.parkDepth);
-    if (d.cargo && !d.cargo.unloading) d.cargo.setPosition(Math.round(d.x), Math.round(d.y - d.alt + bob + 10)).setDepth(d.v.im.depth - 0.01);
+    if (d.cargo && !d.cargo.unloading) d.cargo.setPosition(Math.round(d.x), Math.round(d.y - d.alt + bob + 16)).setDepth(d.v.im.depth - 0.01);
     const lift = Math.min(1, d.alt / 300);
     placeShadow(d.shadow, d.v, d.x + 5, d.y + 4, 0.2 * (1 - lift * 0.5) * d.v.im.alpha,
       flying ? DEPTH.SHADOW : m.parkDepth - 0.001, 1 - lift * 0.25);

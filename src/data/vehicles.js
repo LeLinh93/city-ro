@@ -60,6 +60,7 @@ export const VEHICLES = {
   // space (src/themes/space.js): the hover cars on the roads, the police, fire and hospital rovers and spaceplanes,
   // the space airport's ships (they land straight down on its pads), and the military's
   space_hovercar: { sheet: 'space-hovercar-sheet.png', width: 56 },
+  rover: { sheet: 'rover-sheet.png', width: 64 },
   rover_police: { sheet: 'rover-sheet-police.png', width: 64 },
   rover_fire: { sheet: 'rover-sheet-fire.png', width: 64 },
   rover_hospital: { sheet: 'rover-sheet-hospital.png', width: 64 },
@@ -68,7 +69,7 @@ export const VEHICLES = {
   spaceplane_hospital: { sheet: 'spaceplane-sheet-hospital.png', width: 100, ground: 'center' },
   transportship: { sheet: 'transportship-sheet.png', width: 300, ground: 'center' },
   armoredtransport: { sheet: 'armoredtransport-sheet.png', width: 290, ground: 'center' },
-  miningdrone: { sheet: 'miningdrone-sheet.png', width: 92, ground: 'center' },
+  miningdrone: { sheet: 'miningdrone-sheet.png', width: 150, ground: 'center' },
   space_tank: { sheet: 'space-tank-sheet.png', width: 70 },
   fighter3: { sheet: 'fighter3-sheet.png', width: 150, ground: 'center' },
   interceptor: { sheet: 'interceptor-sheet.png', width: 60, ground: 'center' },

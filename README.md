@@ -45,16 +45,17 @@ night lights and no rain. There is no Rail and no Tsunami.
 Space vehicles: every car on the roads is a space hover car. The police station, hospital and fire station send
 rovers out on the roads and keep a spaceplane on the roof, doing what the city's cars and helicopters do (the fire
 rover and spaceplane put out fires). Transport ships and armored transports come straight down onto the space
-airport's three pads, wait, and take off straight up; fighters do the same at the military airport. Each military
+airport's three pads, wait, and take off straight up, and the airport's rovers drive cargo to the factories
+(Production) and back (with no factory, they just drive around); fighters do the same at the military airport. Each military
 port sends a battleship (as big as an aircraft carrier) flying round the map. A mineral mine keeps a mining drone on
 its pad: rocks with blue crystals float on the lava nearest to the mine, and the drone flies to one, breaks it up
 with its laser, carries the crystals home, lands, unloads and goes again. With no lava there are no rocks, and the
 drone stays on its pad.
 
-Against a monster in space: each military hangar sends a space tank (like a tank), the military airport its
-fighters (like fighter jets), each space turret fires one big laser bolt every 2 minutes that takes a fifth of the
-monster's full health (one zombie against zombies), and each battleship fires 5 rockets at a time like a carrier and
-sends 5 interceptors, which each fire a volley of 20 laser bolts (half a bullet's damage each) and fly back. Shots in
+Against a monster in space: each military hangar sends a space tank (like a tank), the military airport 3
+fighters each wave (like fighter jets), each space turret fires a big laser bolt every 2 seconds (0.2 damage), and each
+battleship fires 5 rockets every 8 seconds and sends 5 interceptors, which each fire a volley of 20 laser bolts (half
+a bullet's damage each), fly back, and go out again 5 seconds later. Shots in
 space are blue laser bolts and rockets with blue flames, much faster than the city's, and they hit and explode in blue.
 
 The clock at the top left shows the time of day. A whole day takes 6 minutes: about 3½ minutes of day, a

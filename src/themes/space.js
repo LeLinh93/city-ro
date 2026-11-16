@@ -12,10 +12,12 @@
 //
 // Vehicles: every car on the roads is a space hover car. The police, fire and hospital stations send rovers and
 // spaceplanes (like the city's cars and helicopters). Settings that only the space theme has:
+//   patrol.deliver : a menu (e.g. 'Production'): each trip drives to one of its buildings, stops there a moment
+//            and drives home; with none of them to reach, it drives around like any patrol (src/agents/Traffic.js)
 //   pads   : landing pads, [{ px, py }] in the picture's own pixels (the middle of each pad), and the ships that
 //            land straight down on them, wait a while and take off straight up (src/agents/Airports.js)
 //   tank   : the tank it sends against monsters, like the city's military base (src/agents/Military.js)
-//   warplanes : the planes the military airport sends against monsters (src/agents/Military.js)
+//   warplanes : the planes the military airport sends against monsters, each wave (src/agents/Military.js)
 //   turret : a big laser gun; px, py = the end of its barrels in the picture's own pixels (src/agents/Military.js)
 //   fleet  : a ship that flies round the map (src/agents/Skyships.js); against monsters it fires rockets and sends
 //            its interceptors (src/agents/Military.js)
@@ -97,6 +99,7 @@ export const SPACE = {
       heli: { vehicle: 'spaceplane_fire', pad: { px: 143, py: 125 }, job: 'fire' },
     },
     spaceairport: {
+      patrol: { vehicle: 'rover', count: 2, rest: [5000, 12000], speed: 0.85, deliver: 'Production' }, // cargo to the factories
       // the tower and the terminal stand up (ships on the pads go behind them); the rest is flat (see city.js, airport)
       apron: [8.8, 3.0],
       parts: [
@@ -107,7 +110,7 @@ export const SPACE = {
     },
     militaryairport: {
       pads: { at: [{ px: 645, py: 370 }, { px: 353, py: 497 }, { px: 920, py: 495 }], ships: ['fighter3'] },
-      warplanes: ['fighter3'],
+      warplanes: ['fighter3', 'fighter3', 'fighter3'], // 3 fighters each wave, one from each pad
     },
     militaryhangar: { patrol: { vehicle: 'space_tank', count: 1, rest: [8000, 18000], speed: 0.7 }, tank: 'space_tank' },
     spaceturret: { turret: { px: 318, py: 196 } },

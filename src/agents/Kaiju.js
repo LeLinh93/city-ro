@@ -67,10 +67,6 @@ export class Kaiju {
     return { x: k.im.x, y: k.im.y - up * 0.6 };
   }
 
-  get maxHp() {
-    return HP;
-  }
-
   hurt(dmg, time) {
     const k = this.k;
     k.hp -= dmg;

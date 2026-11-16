@@ -202,7 +202,7 @@ Changing a width in `src/data/vehicles.js` and running `npm run art` again re-ma
 | `destroyer-sheet.png`, `aircraftcarrier-sheet.png` | Ships of the military dock. |
 | `ustrain-`, `eurotrain-`, `bullettrain-engine-sheet.png` and `-wagon-sheet.png` | The trains of the US, EU and JP train stations (`train` in `src/themes/city.js`): an engine and two wagons. |
 | `space-hovercar-sheet.png` | Space: every car on the roads. |
-| `rover-sheet-police/fire/hospital.png`, `spaceplane-sheet-police/fire/hospital.png` | Space: the rovers of the police station, fire station and hospital, and the spaceplanes on their roofs. (`rover-sheet.png` and `spaceplane-sheet.png` are not used yet.) |
+| `rover-sheet-police/fire/hospital.png`, `spaceplane-sheet-police/fire/hospital.png` | Space: the rovers of the police station, fire station and hospital, and the spaceplanes on their roofs. `rover-sheet.png`: the space airport's cargo rovers. (`spaceplane-sheet.png` is not used yet.) |
 | `transportship-sheet.png`, `armoredtransport-sheet.png` | Space: ships landing on the space airport's pads (`pads` in `src/themes/space.js`). |
 | `fighter3-sheet.png` | Space: the military airport's fighters. |
 | `space-tank-sheet.png` | Space: the military hangar's tank. |

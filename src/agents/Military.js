@@ -9,7 +9,7 @@ import { Soldiers } from './Soldiers.js';
 // helicopter from the military airport (and a jet from each aircraft carrier), rockets from the missile silos
 // and the warships. Every unit picks its own target when there is more than one monster.
 // In space (src/themes/space.js): space tanks from the military hangars, fighters from the military airport, a big
-// laser bolt from each space turret, and rockets and interceptors from the battleships (Skyships.js). Shots there
+// laser bolt every 2 seconds from each space turret, and rockets and interceptors from the battleships (Skyships.js). Shots there
 // are blue laser bolts and blue-flamed rockets, much faster, and they hit in blue.
 //
 // A monster (`foe`) has:
@@ -37,7 +37,7 @@ const SHOTS = {
   bomb: { dmg: 5, speed: 0, accel: 700 }, // falls, faster and faster
   rocket: { dmg: 10, speed: 520, boost: 600 }, // flies up first for `boost` ms, then towards the monster
   bolt: { dmg: 0.5, speed: 950 }, // an interceptor's laser bolt
-  bigbolt: { part: 0.2, speed: 900 }, // a space turret's: a fifth of the monster's full health (one zombie)
+  bigbolt: { dmg: 0.2, speed: 900 }, // a space turret's big bolt
 };
 const SPACE_FAST = 2.6; // in space shots fly this many times faster (rockets half as much more)
 
@@ -53,7 +53,8 @@ const SILO_RELOAD = 30000;
 const SHIP_RELOAD = 20000;
 const SHIP_SALVO = 5; // rockets a destroyer or carrier fires at a time
 const SHIP_TYPES = ['destroyer', 'aircraftcarrier'];
-const TURRET_RELOAD = 120000; // a space turret fires once every 2 minutes
+const TURRET_RELOAD = 2000; // a space turret fires once every 2 seconds
+const FLEET_RELOAD = 8000; // ms between a battleship's salvos of rockets
 const INTERCEPTORS = 5; // each battleship sends this many
 const CARRIER_DECK = 22; // px from the carrier's waterline up to its flight deck
 const SORTIE_REST = 20000; // ms a plane or helicopter waits at home between attacks
@@ -63,7 +64,7 @@ const PLANES = {
   heli_military: { speed: 190, alt: ALT - 70, salvo: [['rocket', 4, 700]] }, // hovers beside it
   bomber: { speed: 210, alt: ALT + 190, salvo: [['bomb', 5, 260]] }, // drops bombs on it from above
   fighter3: { speed: 380, alt: ALT, salvo: [['bullet', 20, 90], ['rocket', 2, 350]] }, // space: like the fighter jet
-  interceptor: { speed: 430, alt: ALT - 30, salvo: [['bolt', 20, 80]] }, // from a battleship: a volley and home
+  interceptor: { speed: 430, alt: ALT - 30, salvo: [['bolt', 20, 80]], rest: 5000 }, // from a battleship: a volley, home, and out again soon
 };
 const CITY_PLANES = ['fighterjet', 'heli_military', 'bomber']; // a military airport's planes, unless it says (warplanes)
 const salvoSize = (c) => c.salvo.reduce((n, [, k]) => n + k, 0);
@@ -217,7 +218,7 @@ export class Military {
     this.scene.tweens.add({ targets: [v.im, shadow], alpha: 0, duration: 300, onComplete: () => { v.im.destroy(); shadow.destroy(); } });
     s.v = null;
     s.state = 'rest';
-    s.until = time + SORTIE_REST;
+    s.until = time + (s.cfg.rest ?? SORTIE_REST);
   }
 
   // A car taken by a disaster: if it was a tank, its base sends a new one a little later.
@@ -265,10 +266,17 @@ export class Military {
         this.fire('rocket', { x: c.x, y: c.top + 30 }, time, this.nearest(b.x + b.w / 2, b.y + b.d / 2));
         this.reload.set(b.id, time + SILO_RELOAD);
       } else if (b.type === 'militaryairport') {
-        for (const plane of b.def.warplanes || CITY_PLANES) {
-          const key = `${b.id}:${plane}`;
-          if (!this.sorties.has(key) && hasVehicle(this.scene, plane)) this.sorties.set(key, this.newSortie(b, plane, time));
-        }
+        // (warplanes may name a plane more than once: that many of it go out each wave, one from each pad)
+        (b.def.warplanes || CITY_PLANES).forEach((plane, k) => {
+          const key = `${b.id}:${plane}:${k}`;
+          if (this.sorties.has(key) || !hasVehicle(this.scene, plane)) return;
+          const s = this.newSortie(b, plane, time);
+          if (b.def.pads) {
+            s.pad = k % b.def.pads.at.length;
+            s.until = time + 800 + k * 600; // one after another
+          }
+          this.sorties.set(key, s);
+        });
       }
     }
     // ships of the fleet
@@ -313,7 +321,7 @@ export class Military {
         }
       }
       if (!this.reload.has(s)) {
-        this.reload.set(s, time + rand(2000, 6000));
+        this.reload.set(s, time + rand(1000, 3000));
         continue;
       }
       if (time < this.reload.get(s)) continue;
@@ -325,7 +333,7 @@ export class Military {
           this.fire('rocket', { x: p.x + rand(-60, 60), y: p.y - s.alt - 30 + rand(-10, 10) }, this.scene.time.now, foe);
         });
       }
-      this.reload.set(s, time + SHIP_RELOAD);
+      this.reload.set(s, time + FLEET_RELOAD);
     }
     // planes of an airport that is gone don't go out again (and a carrier's jet doesn't once the carrier is gone)
     for (const s of this.sorties.values()) if (s.ship ? !ships.has(s.ship) : !live(s.b)) s.dead = true;
@@ -537,7 +545,7 @@ export class Military {
       if (toward(s.home, c.speed) && s.alt <= floor) {
         // landed: gone into the hangar until the next attack
         s.state = 'rest';
-        s.until = time + SORTIE_REST;
+        s.until = time + (c.rest ?? SORTIE_REST);
         const { v, shadow } = s;
         this.scene.tweens.add({ targets: [v.im, shadow], alpha: 0, duration: 500, onComplete: () => { v.im.destroy(); shadow.destroy(); } });
         s.v = null;
@@ -587,13 +595,12 @@ export class Military {
       if (time - s.t0 >= s.boost && d <= Math.max(step, 18)) {
         // hit
         const small = s.kind === 'bullet' || s.kind === 'bolt';
-        if (s.kind === 'rocket' || s.kind === 'bigbolt') this.rocketBlast(tx, ty, time);
+        if (s.kind === 'rocket') this.rocketBlast(tx, ty, time);
         else {
-          this.sparks.emitParticleAt(tx, ty, small ? 2 : 10);
+          this.sparks.emitParticleAt(tx, ty, small ? 2 : s.kind === 'bigbolt' ? 18 : 10);
           if (!small) this.smoke.emitParticleAt(tx, ty, 2);
         }
-        const dmg = S.part ? (s.foe.maxHp ? s.foe.maxHp * S.part : 1) : S.dmg;
-        s.foe.hurt(dmg, time, s.kind, s.mark);
+        s.foe.hurt(S.dmg, time, s.kind, s.mark);
         return false;
       }
       s.x += (dx / d) * step;

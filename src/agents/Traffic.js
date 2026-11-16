@@ -98,6 +98,11 @@ export class Traffic {
 
     for (const c of this.cars) {
       if (c.leaving || c.mode === 'wait') continue;
+      if (c.mode === 'drop') {
+        // a delivery at its factory: a moment there, then home
+        if (time > c.until) this.recall(c);
+        continue;
+      }
       if (c.mode === 'fueling') {
         if (time > c.until) this.fuelOut(c);
         continue;
@@ -107,6 +112,9 @@ export class Traffic {
       if (c.mover.done) {
         // a fire truck at the fire, or a tank at the end of its route (see Ufo.js): stays until called back
         if (c.mode === 'arrived' || c.mode === 'offroad') c.mode = 'wait';
+        else if (c.mode === 'drop') {
+          // a delivery at its factory: waits there (see above) and then drives home
+        }
         else if (c.mode === 'fuel') {
           // at the pump
           c.mode = 'fueling';
@@ -272,6 +280,7 @@ export class Traffic {
     const id = st.p.vehicles ? pick(st.p.vehicles) : st.p.vehicle;
     const speed = SPEED.police * (st.p.speed || 1);
     if (st.p.fields && this.spawnFieldTrip(st, slot, id, speed)) return true;
+    if (st.p.deliver && this.spawnDelivery(st, slot, id, speed)) return true;
     const car = this.leave('service', st.b, id, speed);
     if (!car) return false;
     car.slot = st.slots.indexOf(slot);
@@ -280,6 +289,40 @@ export class Traffic {
     car.patrolLen = Math.floor(rand(15, 35));
     slot.car = car;
     return true;
+  }
+
+  // A delivery (`deliver` in the theme): to the road beside a building of that menu, a moment there, and home.
+  // False when there is none it can reach (then it just drives around).
+  spawnDelivery(st, slot, id, speed) {
+    const list = [...this.world.buildings.values()].filter((o) => o.def.menu === st.p.deliver && !o.ruined && o !== st.b);
+    // one of those a road leads to
+    const paths = list.map((o) => this.roadPathBeside(st.b, o)).filter(Boolean);
+    if (!paths.length) return false;
+    const path = pick(paths);
+    const car = this.leave('service', st.b, id, speed);
+    if (!car) return false;
+    car.slot = st.slots.indexOf(slot);
+    car.mode = 'deliver';
+    car.path = path.slice(1);
+    car.steps = 0;
+    car.patrolLen = 40;
+    slot.car = car;
+    return true;
+  }
+
+  // Road squares from in front of building `from` to the road beside building `to`, or null.
+  roadPathBeside(from, to) {
+    const w = this.world;
+    const goal = new Set(); // road squares around the target
+    for (let j = to.y - 1; j <= to.y + to.d; j++) {
+      for (let i = to.x - 1; i <= to.x + to.w; i++) {
+        const edge = i === to.x - 1 || i === to.x + to.w || j === to.y - 1 || j === to.y + to.d;
+        if (edge && w.isRoad(i, j)) goal.add(w.idx(i, j));
+      }
+    }
+    const g = this.home(from);
+    if (!goal.size || !g || !w.isRoad(...g.outside)) return null;
+    return this.pf.roadPathTo(g.outside, (k) => goal.has(k));
   }
 
   // A farm's tractor: out to a field nearby, up and down its rows, and home (see fields.js).
@@ -303,17 +346,7 @@ export class Traffic {
   // Send a vehicle from building `from` to the road next to building `to`. Returns the car, or null if
   // no road connects them. The car waits there until recall(car).
   dispatch(from, to, id) {
-    const w = this.world;
-    const goal = new Set(); // road squares around the target
-    for (let j = to.y - 1; j <= to.y + to.d; j++) {
-      for (let i = to.x - 1; i <= to.x + to.w; i++) {
-        const edge = i === to.x - 1 || i === to.x + to.w || j === to.y - 1 || j === to.y + to.d;
-        if (edge && w.isRoad(i, j)) goal.add(w.idx(i, j));
-      }
-    }
-    const g = this.home(from);
-    if (!goal.size || !g || !w.isRoad(...g.outside)) return null;
-    const path = this.pf.roadPathTo(g.outside, (k) => goal.has(k));
+    const path = this.roadPathBeside(from, to);
     if (!path) return null;
     const car = this.leave('truck', from, id, SPEED.police * 1.15);
     car.mode = 'respond';
@@ -339,12 +372,15 @@ export class Traffic {
     if (!w.isRoad(i, j)) return false;
     if (car.kind === 'civ' && !car.hover && !car.mode && this.fuel.size && this.fuelIn(car, i, j)) return true;
 
-    if (car.mode === 'respond') {
+    if (car.mode === 'respond' || car.mode === 'deliver') {
       if (car.path?.length && w.isRoad(...car.path[0])) {
         this.go(car, car.path.shift());
         return true;
       }
-      car.mode = 'arrived';
+      if (car.mode === 'deliver') {
+        car.mode = 'drop';
+        car.until = this.scene.time.now + rand(2500, 5000);
+      } else car.mode = 'arrived';
       return false;
     }
 
