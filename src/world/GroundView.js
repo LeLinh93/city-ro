@@ -14,8 +14,14 @@ const CORNERS = [
 ];
 
 // Which edge picture a square of ground g gets from a neighbour of ground n (null = none).
-function edgeKind(g, n) {
+// In space (src/art/space.js) water is lava, and grass and sand are both moon rock.
+function edgeKind(g, n, space) {
   if (g === n) return null;
+  if (space) {
+    if (g === GROUND.WATER) return n === GROUND.PAVEMENT ? 'lavaquay' : 'lavarock';
+    if (g === GROUND.PAVEMENT) return n === GROUND.WATER ? null : 'curb';
+    return null;
+  }
   if (g === GROUND.WATER) return n === GROUND.SAND ? 'foam' : n === GROUND.GRASS ? 'bank' : 'quay';
   if (g === GROUND.SAND) return n === GROUND.GRASS ? 'grass' : null;
   if (g === GROUND.PAVEMENT) return n === GROUND.WATER ? null : 'curb';
@@ -34,8 +40,10 @@ export class GroundView {
     this.lastVersion = -1;
     this.roadAnims = new Map(); // square index -> start time
     const reg = scene.registry;
-    this.variants = reg.get('variants');
-    this.roadTiles = reg.get('roadTiles');
+    this.variants = reg.get('variants'); // the theme's ground pictures (set by GameScene)
+    this.space = scene.look === 'space';
+    this.roadKey = this.space ? 'space_road' : 'road'; // neon roads in space
+    this.roadTiles = this.space ? [] : reg.get('roadTiles'); // the player's road pictures are the city's
     this.waterFrames = this.variants.water.map((k) => Math.max(1, scene.textures.get(k).frameTotal - 1));
     this.checker = reg.get('checkerGrass');
     this.drawn = new Map(); // edge texture key -> drawn by code (no picture file)
@@ -155,12 +163,12 @@ export class GroundView {
             const parts = []; // [kind, part, checker colour]
             for (const s of SIDE_LIST) {
               const d = SIDES[s];
-              side[s] = edgeKind(g, this.rank(i + d.dx, j + d.dy));
+              side[s] = edgeKind(g, this.rank(i + d.dx, j + d.dy), this.space);
               if (side[s]) parts.push([side[s], s, (i + j + 1) & 1]);
             }
             for (const c of CORNERS) {
               if (side[c.a] || side[c.b]) continue;
-              const kind = edgeKind(g, this.rank(i + c.di, j + c.dj));
+              const kind = edgeKind(g, this.rank(i + c.di, j + c.dj), this.space);
               if (kind) parts.push([kind, c.name, (i + j) & 1]);
             }
             // Code-drawn shores of one square are drawn as one picture so their stripes meet in the corners.
@@ -191,10 +199,10 @@ export class GroundView {
             if (full) {
               this.img(full).setPosition(cx, cy + dy).setDepth(DEPTH.ROAD).setAlpha(alpha);
             } else {
-              this.img('road_center').setPosition(cx, cy + dy).setDepth(DEPTH.ROAD).setAlpha(alpha);
+              this.img(`${this.roadKey}_center`).setPosition(cx, cy + dy).setDepth(DEPTH.ROAD).setAlpha(alpha);
               for (const s of SIDE_LIST) {
                 if (mask & SIDES[s].bit) {
-                  this.img(`road_arm_${s}`).setPosition(cx, cy + dy).setDepth(DEPTH.ROAD_ARM).setAlpha(alpha);
+                  this.img(`${this.roadKey}_arm_${s}`).setPosition(cx, cy + dy).setDepth(DEPTH.ROAD_ARM).setAlpha(alpha);
                 }
               }
             }

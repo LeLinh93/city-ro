@@ -1,8 +1,15 @@
 // Builds each theme's building list from the files in assets/building-<theme>/<Menu>/<name>-<W>x<D>.png.
 import { CITY } from './city.js';
+import { SPACE } from './space.js';
 
-export const THEMES = { city: CITY };
+export const THEMES = { city: CITY, space: SPACE };
 export const DEFAULT_THEME = 'city';
+
+// How a theme's map looks and behaves (see the top of space.js), with the city's ways as the defaults.
+const WORLD = { look: 'city', beach: true, dayNight: true, weather: true, rail: true, noDisasters: [] };
+export function themeWorld(themeId) {
+  return { ...WORLD, ...(THEMES[themeId]?.world || {}) };
+}
 
 const FILES = import.meta.glob('../../assets/building-*/**/*.png', { eager: true, query: '?url', import: 'default' });
 const FILE_RE = /assets\/building-([^/]+)\/([^/]+)\/([^/]+?)-(\d+)x(\d+)\.png$/i;
@@ -31,7 +38,10 @@ export function themeCatalog(themeId) {
     if (!m || m[1].toLowerCase() !== themeId) continue;
     const [, , menu, file, sw, sd] = m;
     const key = file.toLowerCase();
-    const id = defs[key] ? `${menu.toLowerCase()}-${key}` : key;
+    // the same name in more than one size (house-1x1, house-2x2): the others get their size in their id
+    let id = key;
+    if (defs[id]) id = `${key}-${sw}x${sd}`;
+    if (defs[id]) id = `${menu.toLowerCase()}-${key}-${sw}x${sd}`;
     const w = Number(sw);
     const d = Number(sd);
     const mcfg = theme.menus[menu] || { icon: '📦', people: 1, attract: 1 };
@@ -39,7 +49,7 @@ export function themeCatalog(themeId) {
     const image = `${themeId}:${id}`;
     const def = {
       id,
-      name: theme.names[key] || prettyName(file),
+      name: (theme.names[key] || prettyName(file)) + (id === key ? '' : ` ${w}×${d}`),
       menu,
       w,
       d,

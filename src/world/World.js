@@ -6,10 +6,11 @@ import { generateMap } from './mapgen.js';
 const ROT_SIDE = { ne: 'nw', nw: 'ne', se: 'sw', sw: 'se' };
 
 export class World {
-  constructor(seed, size = MAP_SIZE) {
+  // opts: { beach } for the map generator (see mapgen.js)
+  constructor(seed, size = MAP_SIZE, opts = {}) {
     this.size = size;
     this.seed = seed;
-    const m = generateMap(size, seed);
+    const m = generateMap(size, seed, opts);
     this.ground = m.ground;
     this.gvar = m.gvar;
     this.tree = m.tree;
@@ -332,9 +333,9 @@ export class World {
   }
 
   // Rebuild a world from serialize() data. Buildings are added later, once the views exist (see GameScene).
-  static fromData(data) {
+  static fromData(data, opts = {}) {
     if (!data || data.v !== 1) return null;
-    const w = new World(data.seed);
+    const w = new World(data.seed, MAP_SIZE, opts);
     if (typeof data.ground === 'string' && data.ground.length === w.ground.length) {
       for (let k = 0; k < w.ground.length; k++) {
         const g = data.ground.charCodeAt(k) - 48;

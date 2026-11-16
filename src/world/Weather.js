@@ -12,11 +12,12 @@ const GREY = 0xa6b0c2; // the colour the world is tinted with in full rain
 const DEPTH = 150000; // over everything on the map (the building being placed stays on top)
 
 export class Weather {
-  constructor(scene) {
+  // enabled: false = it never rains (the space theme)
+  constructor(scene, { enabled = true } = {}) {
     this.scene = scene;
     this.kind = 'clear';
     this.amount = 0; // 0 = dry, 1 = full rain
-    this.next = rand(...FIRST_S);
+    this.next = enabled ? rand(...FIRST_S) : Infinity;
     this.until = 0;
     this.clock = 0; // seconds
     this.draw = scene.add.graphics().setDepth(DEPTH);
@@ -36,7 +37,7 @@ export class Weather {
       this.until = this.clock + rand(...RAIN_S);
     } else {
       this.kind = 'clear';
-      this.next = this.clock + rand(...CLEAR_S);
+      this.next = this.next === Infinity ? Infinity : this.clock + rand(...CLEAR_S);
     }
     this.scene.events.emit('weather', this.kind);
   }

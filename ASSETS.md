@@ -26,6 +26,10 @@ assets/building-city/
 - **Image width = (W + D) × 64 px, exactly**, any height. The footprint's bottom corner touches the bottom edge,
   and its left and right corners touch the left and right edges. `npm run art` makes this for you (below).
 - **🔄 mirrors the picture**, so a 2 × 1 building turned becomes 1 × 2.
+- **Give every picture of a theme its own name**, even in different sizes: `house1-1x1.png`, `house2-2x1.png`
+  (they show as "House 1", "House 2"). Two pictures with the same name get their size added to their id.
+- **The "space" theme** reads `assets/building-space/` the same way; its settings are in `src/themes/space.js`.
+  Its ground, roads and astronaut people are drawn by code (`src/art/space.js`), so they need no pictures.
 - Doors default to the middle of the down-left face. Special cases (the police garage, the airport's runway,
   parking spots and terminals) are in `buildings` in `src/themes/city.js`.
 
@@ -106,6 +110,9 @@ Options per job: `fuzz` (background tolerance in %, default 12), `colors` (defau
 Put the start screen picture in `assets/ui/menu.png` (or `.jpg` / `.webp`). It fills the screen from the top,
 so keep the title near the top; the ＋ button and the city list sit about a third of the way down. Without the
 file the menu shows a plain "City Builder" title.
+
+The menu picture is also on the City card when ＋ asks City or Space. The Space card shows `assets/ui/moon.png`
+(or `.jpg` / `.webp`), shown 220 × 143 px, cropped to fill; without it a moon is drawn by code.
 
 ## Rules for every image
 

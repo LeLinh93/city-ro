@@ -27,13 +27,21 @@ with its own icon. After you upload a new build, the app updates itself the next
 
 ## How to play
 
-The game opens on the menu: tap **＋** for a new city, or tap a saved city to keep building. 🗑️ deletes a city.
+The game opens on the menu: tap **＋** for a new city and pick **City** or **Space**, or tap a saved city to
+keep building. 🗑️ deletes a city.
 ⬇️ on a city saves it to a file (on the iPad home-screen app the share sheet opens: pick "Save to Files"),
 and 📂 next to ＋ loads a city from a file on the device as a new city. Use them to keep a copy or to move a
 city to another device, since cities are otherwise stored only in this browser. The file has no picture of
 the city: a city loaded from a file shows 🏙️ in the menu until it is opened and closed again.
 In a city, 🏠 (top right) saves and goes back to the menu. The city's name shows under the clock; tap it to
 give the city a new name.
+
+**Space** (`src/themes/space.js`) is a city on the moon, with its own buildings (`assets/building-space/`).
+The ground is moon rock with lava round it instead of water (lava works like water: nothing is built on it),
+and Plot paints moon rock, lava or white pavement. Roads have a blue neon strip and blue lights on the curbs,
+people wear astronaut helmets, and the sky is black with twinkling stars. It is always day: no clock, no
+night lights and no rain. There is no Rail and no Tsunami. Until the space vehicles are drawn, every car on
+the roads is a hover car.
 
 The clock at the top left shows the time of day. A whole day takes 6 minutes: about 3½ minutes of day, a
 short orange evening, 1½ minutes of night and a pink morning. At night the city turns dark blue, building walls
@@ -160,7 +168,9 @@ in the build bar.
 | File | What's in it |
 |---|---|
 | `src/themes/city.js` | The city theme: menu icons, building names, doors, garages, helicopters, fires, docks, airport layout. |
-| `src/themes/catalog.js` | Turns the `assets/building-<theme>/` folders into the building list. |
+| `src/themes/space.js` | The space theme: menus, names, and how its map differs (no day and night, no rain, no rail, no tsunami). |
+| `src/themes/catalog.js` | Turns the `assets/building-<theme>/` folders into the building list; `themeWorld` gives a theme's map settings. |
+| `src/art/space.js` | Code-drawn space art: moon rock, lava, white pavement, neon roads, astronauts, stars, the moon picture. |
 | `src/menu.js`, `src/saves.js` | Start menu and saved cities. |
 | `src/ui.js` | Build bar, building menus, ✔ ✖ 🔄 buttons. |
 | `src/data/art.js` | Art file counts and sprite-sheet frame sizes. |

@@ -136,6 +136,10 @@ const SHORES = {
   quay: { wobble: 0, bands: [[0.035, 0xd2d3d5], [0.047, 0x9a9ca0], [0.1, 0x8a8c91], [0.115, 0x6f7176], [0.14, 0xe4f5fc, 210]], spray: true },
   // on a pavement square next to grass or sand: a light kerb
   curb: { wobble: 0, bands: [[0.03, 0xd6d7d9], [0.042, 0x9a9ca0]], spray: false },
+  // space (src/art/space.js): on a lava square next to moon rock: rock lip, dark scorched rock, a glowing rim
+  lavarock: { wobble: 0.012, bands: [[0.03, 0x8e8e8d], [0.07, 0x55504c], [0.105, 0x35261f], [0.135, 0xffb43a, 220]], spray: 0xffd27a },
+  // on a lava square next to pavement: white stone edge, dark wall, a glowing rim
+  lavaquay: { wobble: 0, bands: [[0.035, 0xedf0f3], [0.047, 0xbfc4cb], [0.1, 0x5e626b], [0.115, 0x44474f], [0.14, 0xffb43a, 210]], spray: 0xffd27a },
 };
 
 export const SHORE_KINDS = Object.keys(SHORES);
@@ -155,7 +159,7 @@ export function genShores(parts) {
       if (!inTile(u, v)) continue;
       let best = null;
       let bestD = Infinity;
-      let spray = false;
+      let spray = 0; // the colour of the spray past the edge (white foam, or sparks on lava)
       for (const [kind, part] of parts) {
         const S = SHORES[kind];
         const [dist, along] = edgeDist(part, u, v);
@@ -164,12 +168,12 @@ export function genShores(parts) {
         if (d < last && d < bestD) {
           bestD = d;
           best = S;
-        } else if (S.spray && d < last + 0.05) spray = true;
+        } else if (S.spray && d < last + 0.05) spray = S.spray === true ? 0xffffff : S.spray;
       }
       if (best) {
         const band = best.bands.find((b) => bestD < b[0]);
         pix.set(px, py, band[1], band[2] ?? 255);
-      } else if (spray && hash2(px, py, 5) < 0.25) pix.set(px, py, 0xffffff, 140);
+      } else if (spray && hash2(px, py, 5) < 0.25) pix.set(px, py, spray, 140);
     }
   }
   return pix;

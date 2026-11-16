@@ -86,16 +86,18 @@ function makeTextures(scene) {
 const WARM = 0xffd68a;
 
 export class DayNight {
-  constructor(scene, hour) {
+  // fixed: true = always midday, no clock (the space theme)
+  constructor(scene, hour, { fixed = false } = {}) {
     this.scene = scene;
-    this.hour = Number.isFinite(hour) ? ((hour % 24) + 24) % 24 : 9;
+    this.fixed = fixed;
+    this.hour = fixed ? 12 : Number.isFinite(hour) ? ((hour % 24) + 24) % 24 : 9;
     let mode = 'auto';
     try {
       mode = localStorage.getItem(MODE_KEY) || 'auto';
     } catch {
       // private browsing: always start on auto
     }
-    this.mode = MODES.includes(mode) ? mode : 'auto';
+    this.mode = fixed ? 'day' : MODES.includes(mode) ? mode : 'auto';
     this.tint = 0xffffff;
     this.weatherTint = 0xffffff;
     this.level = -1;
@@ -140,7 +142,9 @@ export class DayNight {
   }
 
   update(time, dt) {
-    if (this.mode === 'auto') {
+    if (this.fixed) {
+      // always midday
+    } else if (this.mode === 'auto') {
       this.hour = (this.hour + (dt * 24) / DAY_S) % 24;
     } else {
       // skip forward to noon or midnight, and stay there

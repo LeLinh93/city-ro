@@ -1,9 +1,15 @@
 // The start screen: a picture, a ＋ button for a new city, and the saved cities.
 import { listCities, createCity, deleteCity, exportCity, importCity } from './saves.js';
-import { DEFAULT_THEME } from './themes/catalog.js';
+import { THEMES } from './themes/catalog.js';
+import { moonPicture } from './art/space.js';
 
 // Optional picture for the menu: assets/ui/menu.png (or .jpg / .webp). Without it a text title shows.
 const ART = Object.values(import.meta.glob('../assets/ui/menu.{png,jpg,jpeg,webp}', { eager: true, query: '?url', import: 'default' }))[0];
+// Optional picture for the Space card of the new-city choice: assets/ui/moon.png (or .jpg / .webp).
+// Without it a moon is drawn by code.
+const MOON = Object.values(import.meta.glob('../assets/ui/moon.{png,jpg,jpeg,webp}', { eager: true, query: '?url', import: 'default' }))[0];
+const THEME_PICS = { city: () => ART, space: () => MOON || moonPicture() };
+const THEME_ICONS = { city: '🏙️', space: '🌕' };
 
 // Give the player a file: on the iPad home-screen app through the share sheet ("Save to Files"),
 // elsewhere as a normal download.
@@ -47,7 +53,12 @@ export class Menu {
       this.root.style.backgroundImage = `url("${ART}")`;
       this.root.classList.add('has-art');
     }
-    document.getElementById('new-city').addEventListener('click', () => this.onOpen(createCity(DEFAULT_THEME)));
+    // ＋: choose City or Space, then the new city opens
+    this.pickTheme = document.getElementById('theme-pick');
+    document.getElementById('new-city').addEventListener('click', () => this.showThemes());
+    this.pickTheme.addEventListener('click', (e) => {
+      if (e.target === this.pickTheme || e.target.closest('#theme-close')) this.pickTheme.classList.add('hidden');
+    });
     // 📂: add a city from a save file on this device
     const input = document.getElementById('load-file');
     document.getElementById('load-city').addEventListener('click', () => input.click());
@@ -63,6 +74,31 @@ export class Menu {
         alert(e.message || "This file couldn't be loaded.");
       }
     });
+  }
+
+  showThemes() {
+    const cards = this.pickTheme.querySelector('.theme-cards');
+    if (!cards.childElementCount) {
+      for (const theme of Object.values(THEMES)) {
+        const card = document.createElement('button');
+        card.className = 'theme-card';
+        const pic = document.createElement('div');
+        pic.className = 'theme-pic';
+        const url = THEME_PICS[theme.id]?.();
+        if (url) pic.style.backgroundImage = `url("${url}")`;
+        else pic.textContent = THEME_ICONS[theme.id] || '🏙️';
+        const name = document.createElement('div');
+        name.className = 'theme-name';
+        name.textContent = theme.name;
+        card.append(pic, name);
+        card.addEventListener('click', () => {
+          this.pickTheme.classList.add('hidden');
+          this.onOpen(createCity(theme.id));
+        });
+        cards.appendChild(card);
+      }
+    }
+    this.pickTheme.classList.remove('hidden');
   }
 
   show() {

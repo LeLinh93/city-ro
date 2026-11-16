@@ -33,6 +33,8 @@ export class Traffic {
     this.spawnTimer = 0;
     this.variants = scene.registry.get('variants').car; // code-drawn stand-ins
     this.carIds = CARS.filter((id) => hasVehicle(scene, id));
+    // space (src/themes/space.js): every car is a hover car, until the space cars are drawn
+    this.allHover = scene.look === 'space' && hasVehicle(scene, 'hovercar');
     // a ruined building counts as gone until it is repaired
     world.onBuilding((b) => {
       if (b.def.fuel) this.fuel.set(b.id, { b, used: b.def.fuel.spots.map(() => null) });
@@ -64,8 +66,9 @@ export class Traffic {
   }
 
   update(time, dt) {
-    const civ = this.cars.filter((c) => c.kind === 'civ' && !c.leaving && !c.hover);
-    const hover = this.cars.filter((c) => c.hover && !c.leaving);
+    // (in space the cars are hover cars too: `asCar` counts them as cars, not as the Future lab's)
+    const civ = this.cars.filter((c) => c.kind === 'civ' && !c.leaving && (!c.hover || c.asCar));
+    const hover = this.cars.filter((c) => c.hover && !c.asCar && !c.leaving);
     const wantHover = this.hoverTarget();
     // a lab just built (or the city just opened): a few hover cars at once
     for (; this.hoverNow > 0 && hover.length < wantHover; this.hoverNow--) {
@@ -194,6 +197,8 @@ export class Traffic {
 
   spawnCivilian(hover = false) {
     const w = this.world;
+    const asCar = !hover && this.allHover;
+    hover ||= asCar;
     const k = this.randomRoad();
     if (k < 0) return null;
     const i = k % w.size;
@@ -202,6 +207,7 @@ export class Traffic {
     const car = this.makeCar('civ', id, pick(this.variants), i + 0.5, j + 0.5, true, SPEED.car * rand(0.85, 1.15) * (hover ? 1.3 : 1));
     if (hover) {
       car.hover = true;
+      car.asCar = asCar;
       car.bob = Math.random() * Math.PI * 2;
       car.shadow = vehicleShadow(this.scene, car.v);
     }

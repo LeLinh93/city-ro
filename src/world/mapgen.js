@@ -1,9 +1,10 @@
 import { GROUND } from '../constants.js';
 import { mulberry32, fbm } from '../rng.js';
 
-// Random island: water around the edge, a beach ring and grass inside.
+// Random island: water around the edge, a beach ring and grass inside. beach: false = no beach, the grass goes
+// right up to the water (the space theme: moon rock and lava).
 // (tree / tjx / tjy are kept for old saves but stay empty: trees are now buildings you place.)
-export function generateMap(size, seed) {
+export function generateMap(size, seed, { beach = true } = {}) {
   const n = size * size;
   const ground = new Uint8Array(n);
   const gvar = new Uint8Array(n);
@@ -22,12 +23,13 @@ export function generateMap(size, seed) {
       let h = e * 0.9 + 0.62 - d * d * 1.35;
       const border = Math.min(i, j, size - 1 - i, size - 1 - j);
       if (border < 3) h = -1;
-      ground[k] = h < 0.4 ? GROUND.WATER : h < 0.46 ? GROUND.SAND : GROUND.GRASS;
+      ground[k] = h < 0.4 ? GROUND.WATER : h < 0.46 && beach ? GROUND.SAND : GROUND.GRASS;
       gvar[k] = Math.floor(rnd() * 256);
     }
   }
 
   // Grass never touches water directly: there is always a beach in between.
+  if (!beach) return { ground, gvar, tree, tjx, tjy };
   const toSand = [];
   for (let j = 0; j < size; j++) {
     for (let i = 0; i < size; i++) {

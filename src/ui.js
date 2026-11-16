@@ -42,6 +42,12 @@ const PAINTS = [
   { paint: 'water', name: 'Water', texture: 'water_0' },
   { paint: 'pavement', name: 'Pavement', texture: 'pavement_0' },
 ];
+// In space (src/themes/space.js): grass is moon rock and water is lava (no sand).
+const SPACE_PAINTS = [
+  { paint: 'grass', name: 'Moon rock', texture: 'space_rock_0' },
+  { paint: 'water', name: 'Lava', texture: 'space_lava_0' },
+  { paint: 'pavement', name: 'Pavement', texture: 'space_pave_0' },
+];
 // The Road menu: roads and railways.
 const ROADS = [
   { tool: 'road', name: 'Road', icon: '🛣️' },
@@ -202,6 +208,13 @@ export class UI {
       this.highlight(type === 'group' ? 'select' : type);
       this.showHint(type === 'group' ? HINTS.group : HINTS.placing);
     });
+    // the theme's ways: space has no clock (always day), no railways, fewer disasters
+    const look = scene.themeWorld;
+    this.clock.classList.toggle('hidden', !look.dayNight);
+    this.roads = ROADS.filter((r) => r.tool !== 'rail' || look.rail);
+    this.disasters = DISASTERS.filter((d) => !look.noDisasters.includes(d.action));
+    this.paints = look.look === 'space' ? SPACE_PAINTS : PAINTS;
+    this.paintHint = look.look === 'space' ? HINTS.paint.replace('Water', 'Lava') : HINTS.paint;
     this.buildBar();
     this.select('hand');
   }
@@ -250,17 +263,17 @@ export class UI {
     this.button('select', '🔳', 'Select', () => this.toggleTool('select'));
     this.button('road', '🛣️', 'Road', () => {
       const open = this.openMenu === 'road';
-      this.toggleMenu('road', ROADS, false, HINTS.roads);
+      this.toggleMenu('road', this.roads, false, HINTS.roads);
       // the menu opens with Road picked; Rail is one tap away
-      if (!open && this.scene && this.scene.tool !== 'rail') this.pick(ROADS[0]);
+      if (!open && this.scene && this.scene.tool !== 'rail') this.pick(this.roads[0]);
     });
-    const plot = PAINTS.map((p) => ({ ...p, url: this.scene.textures.getBase64(p.texture, 0) }));
+    const plot = this.paints.map((p) => ({ ...p, url: this.scene.textures.getBase64(p.texture, 0) }));
     this.button('plot', '🖌️', 'Plot', () => this.toggleMenu('plot', plot, true, HINTS.plot));
     for (const m of MENUS) {
       this.button(`menu:${m.name}`, m.icon, m.name,
         () => this.toggleMenu(`menu:${m.name}`, m.items, m.paint, m.paint ? HINTS.painter : HINTS.menu));
     }
-    this.button('disaster', '⚡', 'Disaster', () => this.toggleMenu('disaster', DISASTERS, false, HINTS.disaster));
+    this.button('disaster', '⚡', 'Disaster', () => this.toggleMenu('disaster', this.disasters, false, HINTS.disaster));
     this.button('repair', '🔧', 'Repair', () => this.repair());
     this.button('bulldoze', '🚜', 'Remove', () => this.toggleTool('bulldoze')); // always the last button
   }
@@ -423,7 +436,7 @@ export class UI {
       const id = def.paint ? `paint:${def.paint}` : `deco:${def.id}`;
       this.scene.setTool(id);
       this.highlight(id);
-      this.showHint(def.paint ? HINTS.paint : HINTS.deco);
+      this.showHint(def.paint ? this.paintHint : HINTS.deco);
       return;
     }
     this.settle();

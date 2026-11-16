@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { BUILDINGS } from '../themes/catalog.js';
+import { BUILDINGS, themeWorld } from '../themes/catalog.js';
 import { toWorld, toGrid } from '../iso.js';
 import { World } from '../world/World.js';
 import { GroundView } from '../world/GroundView.js';
@@ -22,7 +22,7 @@ import { Trains } from '../agents/Trains.js';
 import { Zombies } from '../agents/Zombies.js';
 import { Military } from '../agents/Military.js';
 import { loadCity, saveCity } from '../saves.js';
-import { GROUND, DEPTH } from '../constants.js';
+import { GROUND, DEPTH, MAP_SIZE } from '../constants.js';
 
 // Ground number for a paint tool id like 'paint:water', or null for other tools.
 // Building id for a decoration tool like 'deco:tree1', or null for other tools.
@@ -40,11 +40,22 @@ export class GameScene extends Phaser.Scene {
   }
 
   create() {
+    // the theme's map: its ground pictures, sky, day and night, weather (see src/themes/space.js)
+    const look = themeWorld(this.city.theme);
+    this.themeWorld = look;
+    this.look = look.look;
+    this.registry.set('variants', this.registry.get(`variants:${look.look}`) || this.registry.get('variants:city'));
+    this.cameras.main.setBackgroundColor(look.look === 'space' ? 'rgba(0,0,0,0)' : '#2b62a6'); // space: the stars behind (style.css)
+    document.body.classList.toggle('space', look.look === 'space');
+    this.events.once('shutdown', () => document.body.classList.remove('space'));
+
     const saved = loadCity(this.city.id);
-    const world = World.fromData(saved) || new World((Math.random() * 2 ** 31) | 0);
+    const opts = { beach: look.beach };
+    const world = World.fromData(saved, opts) || new World((Math.random() * 2 ** 31) | 0, MAP_SIZE, opts);
     this.world = world;
-    this.dayNight = new DayNight(this, saved?.time); // first, so everything made after it gets the time of day's colour
-    this.weather = new Weather(this);
+    // first, so everything made after it gets the time of day's colour
+    this.dayNight = new DayNight(this, saved?.time, { fixed: !look.dayNight });
+    this.weather = new Weather(this, { enabled: look.weather });
     this.views = new Map();
     this.tool = 'hand';
     this.rot = 0;

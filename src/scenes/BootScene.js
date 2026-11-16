@@ -6,6 +6,7 @@ import {
   genGround, genEdge, genShore, genRoadCenter, genRoadArm,
   genPerson, genSoldier, genCar, genPlane, genPuff, genDust, genShadow, genFlame, genDrop,
 } from '../art/placeholders.js';
+import { genMoonRock, genLava, genWhitePavement, genNeonRoadCenter, genNeonRoadArm, genAstronaut } from '../art/space.js';
 
 // Every PNG in the project's assets/ folder, found at build time (and live while `npm run dev` runs).
 const FILES = import.meta.glob('../../assets/**/*.png', { eager: true, query: '?url', import: 'default' });
@@ -148,7 +149,20 @@ export class BootScene extends Phaser.Scene {
       for (let k = 0; k < 4; k++) tex.add(k, 0, k * fw, 0, fw, src.height);
     }
 
+    // The space theme's ground, roads and people (src/art/space.js). The game scene puts the theme's
+    // set in 'variants' when a city opens.
+    const space = { ...variants };
+    space.grass = [0, 1, 2, 3].map((i) => addPix(this, `space_rock_${i}`, genMoonRock(i)).key);
+    space.sand = space.grass; // no sand on the moon: old sand squares look like rock
+    space.water = [0, 1, 2].map((i) => addPix(this, `space_lava_${i}`, genLava(i, 6), 128, 64).key);
+    space.pavement = [0, 1].map((i) => addPix(this, `space_pave_${i}`, genWhitePavement(i)).key);
+    space.person = [0, 1, 2, 3, 4].map((i) => addPix(this, `space_person_${i}`, genAstronaut(i), 32, 48).key);
+    addPix(this, 'space_road_center', genNeonRoadCenter());
+    for (const s of ['ne', 'se', 'sw', 'nw']) addPix(this, `space_road_arm_${s}`, genNeonRoadArm(s));
+
     this.registry.set('variants', variants);
+    this.registry.set('variants:city', variants);
+    this.registry.set('variants:space', space);
     this.registry.set('roadTiles', roadTiles);
     this.registry.set('checkerGrass', checker);
     this.game.events.emit('boot-done');
