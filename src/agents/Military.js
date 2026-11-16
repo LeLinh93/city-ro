@@ -63,7 +63,7 @@ const PLANES = {
   fighterjet: { speed: 380, alt: ALT, salvo: [['bullet', 20, 90], ['rocket', 2, 350]] }, // a strafing run
   heli_military: { speed: 190, alt: ALT - 70, salvo: [['rocket', 4, 700]] }, // hovers beside it
   bomber: { speed: 210, alt: ALT + 190, salvo: [['bomb', 5, 260]] }, // drops bombs on it from above
-  fighter3: { speed: 380, alt: ALT, salvo: [['bullet', 20, 90], ['rocket', 2, 350]] }, // space: like the fighter jet
+  fighter3: { speed: 380, alt: ALT, salvo: [['bullet', 20, 90], ['rocket', 2, 350]], rest: 6000 }, // space: like the fighter jet, out again soon
   interceptor: { speed: 430, alt: ALT - 30, salvo: [['bolt', 20, 80]], rest: 5000 }, // from a battleship: a volley, home, and out again soon
 };
 const CITY_PLANES = ['fighterjet', 'heli_military', 'bomber']; // a military airport's planes, unless it says (warplanes)

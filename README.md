@@ -53,7 +53,7 @@ with its laser, carries the crystals home, lands, unloads and goes again. With n
 drone stays on its pad.
 
 Against a monster in space: each military hangar sends a space tank (like a tank), the military airport 3
-fighters each wave (like fighter jets), each space turret fires a big laser bolt every 2 seconds (0.2 damage), and each
+fighters each wave (like fighter jets, but out again 6 seconds after they land), each space turret fires a big laser bolt every 2 seconds (0.2 damage), and each
 battleship fires 5 rockets every 8 seconds and sends 5 interceptors, which each fire a volley of 20 laser bolts (half
 a bullet's damage each), fly back, and go out again 5 seconds later. Shots in
 space are blue laser bolts and rockets with blue flames, much faster than the city's, and they hit and explode in blue.
