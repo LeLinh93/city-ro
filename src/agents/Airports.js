@@ -1,8 +1,20 @@
 import { DEPTH } from '../constants.js';
-import { toWorld } from '../iso.js';
+import { toWorld, toGrid } from '../iso.js';
+import { footprintPlacement } from '../world/BuildingView.js';
 import { pick, rand } from '../rng.js';
 import { ART } from '../data/art.js';
-import { vehicleSprite, faceVehicle, vehicleShadow, placeShadow } from './vehicleArt.js';
+import { vehicleSprite, faceVehicle, vehicleShadow, placeShadow, hasVehicle } from './vehicleArt.js';
+
+const PAD_TOP = 560; // px above its pad where a ship coming down to it appears (and one taking off is gone)
+const PAD_DIRS = [[1, 0], [0, 1], [-1, 0], [0, -1]];
+
+// A pixel of a building's picture, in world pixels (pictures of turned buildings are mirrored).
+function picturePoint(scene, b, px, py) {
+  const place = footprintPlacement(b.x, b.y, b.w, b.d);
+  const tex = scene.textures.get(b.def.base || b.def.image).source[0];
+  const scale = place.width / tex.width;
+  return { x: place.left + (b.rot ? tex.width - px : px) * scale, y: place.tipY - tex.height * scale + py * scale };
+}
 
 // The airport's settings (one runway along +x) as a lane: see lanes in src/themes/city.js.
 function airportLane(A) {
@@ -20,6 +32,8 @@ function airportLane(A) {
 
 // Planes land, taxi to a parking spot, wait, taxi back and take off.
 // Each runway (lane) has its own planes, and only one of them moves at a time, so they never collide.
+// Landing pads (`pads` in src/themes/space.js) instead: a ship comes straight down onto a free pad, waits, and
+// goes straight back up.
 export class Airports {
   constructor(scene, world) {
     this.scene = scene;
@@ -28,6 +42,11 @@ export class Airports {
     this.variants = scene.registry.get('variants').plane;
     // a ruined building counts as gone until it is repaired
     world.onBuilding((b) => {
+      if (b.def.pads) {
+        const ships = b.def.pads.ships.filter((id) => hasVehicle(scene, id));
+        if (ships.length) this.ports.set(b.id, [{ b, pads: b.def.pads.at, ships, lock: { busy: null }, planes: [], next: scene.time.now + 2000 }]);
+        return;
+      }
       const lanes = b.def.lanes || (b.def.airport ? [airportLane(b.def.airport)] : null);
       if (!lanes) return;
       const lock = { busy: null }; // shared by all the runways: one plane moves at a time
@@ -41,6 +60,12 @@ export class Airports {
   update(time, dt) {
     for (const lanes of this.ports.values()) {
       for (const port of lanes) {
+        if (port.pads) {
+          if (!port.lock.busy && time > port.next) this.schedulePad(port, time);
+          for (const p of port.planes) this.stepPad(port, p, time, dt);
+          port.planes = port.planes.filter((p) => !p.gone);
+          continue;
+        }
         if (!port.lock.busy && time > port.next) this.schedule(port, time);
         for (const p of port.planes) this.step(port, p, time, dt);
         port.planes = port.planes.filter((p) => !p.gone);
@@ -58,6 +83,73 @@ export class Airports {
     else if (free.length) this.land(port, pick(free));
     else port.next = time + 3000;
   }
+
+  // ---------- landing pads: straight down and straight up ----------
+
+  schedulePad(port, time) {
+    const used = new Set(port.planes.map((p) => p.pad));
+    const free = port.pads.map((_, k) => k).filter((k) => !used.has(k));
+    const ready = port.planes.filter((p) => p.state === 'parked' && time > p.until);
+    if (ready.length && (!free.length || Math.random() < 0.5)) {
+      const p = pick(ready);
+      p.state = 'up';
+      port.lock.busy = p;
+    } else if (free.length) this.landPad(port, pick(free), time);
+    else port.next = time + 3000;
+  }
+
+  landPad(port, k, time) {
+    const { b } = port;
+    const at = picturePoint(this.scene, b, port.pads[k].px, port.pads[k].py);
+    const v = vehicleSprite(this.scene, pick(port.ships), null);
+    const p = { port, v, sprite: v.im, shadow: vehicleShadow(this.scene, v), pad: k, x: at.x, y: at.y, alt: PAD_TOP, state: 'down', dir: pick(PAD_DIRS) };
+    const g = toGrid(at.x, at.y);
+    // parked: among the parts that stand up (`parts`), else over the whole building, like a helicopter on a roof
+    p.parkDepth = b.def.parts ? g.fx + g.fy + 1.2 : b.x + b.y + b.w + b.d - 0.45;
+    p.sprite.setAlpha(0);
+    this.scene.tweens.add({ targets: p.sprite, alpha: 1, duration: 1000 });
+    port.planes.push(p);
+    port.lock.busy = p;
+    this.renderPad(p, time);
+  }
+
+  stepPad(port, p, time, dt) {
+    if (p.state === 'down') {
+      // fast high up, slowing right down for the touch down
+      p.alt = Math.max(0, p.alt - Math.max(22, p.alt * 1.1) * dt);
+      if (p.alt === 0) {
+        p.state = 'parked';
+        p.until = time + rand(15000, 30000);
+        port.lock.busy = null;
+        port.next = time + rand(3000, 7000);
+      }
+    } else if (p.state === 'up') {
+      p.alt += Math.max(22, p.alt * 1.2) * dt;
+      if (p.alt > 260 && !p.fading) {
+        p.fading = true;
+        this.scene.tweens.add({ targets: p.sprite, alpha: 0, duration: 900 });
+      }
+      if (p.alt > PAD_TOP) {
+        port.lock.busy = null;
+        port.next = time + rand(3000, 7000);
+        this.remove(p);
+        return;
+      }
+    }
+    this.renderPad(p, time);
+  }
+
+  renderPad(p, time) {
+    faceVehicle(p.v, p.dir[0], p.dir[1]);
+    const hum = p.alt > 2 ? Math.sin(time / 300) * 2 : 0; // a little wobble while it hovers on its engines
+    p.sprite.setPosition(Math.round(p.x), Math.round(p.y - p.alt + hum));
+    p.sprite.setDepth(p.alt > 4 ? DEPTH.AIR + p.alt : p.parkDepth);
+    const lift = Math.min(1, p.alt / 350);
+    placeShadow(p.shadow, p.v, p.x + 6 + p.alt * 0.1, p.y + 5, 0.22 * (1 - lift * 0.7) * p.sprite.alpha,
+      p.alt > 4 ? DEPTH.SHADOW : p.parkDepth - 0.001, 1 - lift * 0.3);
+  }
+
+  // ---------- runways ----------
 
   makePlane(port, x, y, alt) {
     const v = vehicleSprite(this.scene, port.A.plane || 'airplane', { key: pick(this.variants), origin: ART.planeOrigin });

@@ -21,6 +21,7 @@ import { Rockets } from '../agents/Rockets.js';
 import { Trains } from '../agents/Trains.js';
 import { Zombies } from '../agents/Zombies.js';
 import { Military } from '../agents/Military.js';
+import { Skyships } from '../agents/Skyships.js';
 import { loadCity, saveCity } from '../saves.js';
 import { GROUND, DEPTH, MAP_SIZE } from '../constants.js';
 
@@ -73,11 +74,12 @@ export class GameScene extends Phaser.Scene {
     this.ships = new Ships(this, world);
     this.rockets = new Rockets(this, world);
     this.services = new Services(this, world, this.traffic);
+    this.skyships = new Skyships(this, world, this.services); // space: battleships and mining drones
     this.people = new People(this, world, this.pf);
     this.trains = new Trains(this, world, { people: this.people });
     this.traffic.trains = this.trains; // cars wait at level crossings
     this.disasters = new Disasters(this, world, { people: this.people, traffic: this.traffic, services: this.services });
-    this.military = new Military(this, world, { services: this.services, traffic: this.traffic, ships: this.ships, disasters: this.disasters });
+    this.military = new Military(this, world, { services: this.services, traffic: this.traffic, ships: this.ships, disasters: this.disasters, skyships: this.skyships });
     this.ufo = new Ufo(this, world, { military: this.military, disasters: this.disasters });
     this.kaiju = new Kaiju(this, world, { military: this.military, disasters: this.disasters });
     this.zombies = new Zombies(this, world, { people: this.people, military: this.military, disasters: this.disasters });
@@ -154,6 +156,7 @@ export class GameScene extends Phaser.Scene {
     this.ships.update(time, dt);
     this.rockets.update(time, dt);
     this.services.update(time, dt);
+    this.skyships.update(time, dt);
     this.disasters.update(time, dt);
     this.ufo.update(time, dt);
     this.kaiju.update(time, dt);

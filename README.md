@@ -40,8 +40,22 @@ give the city a new name.
 The ground is moon rock with lava round it instead of water (lava works like water: nothing is built on it),
 and Plot paints moon rock, lava or white pavement. Roads have a blue neon strip and blue lights on the curbs,
 people wear astronaut helmets, and the sky is black with twinkling stars. It is always day: no clock, no
-night lights and no rain. There is no Rail and no Tsunami. Until the space vehicles are drawn, every car on
-the roads is a hover car.
+night lights and no rain. There is no Rail and no Tsunami.
+
+Space vehicles: every car on the roads is a space hover car. The police station, hospital and fire station send
+rovers out on the roads and keep a spaceplane on the roof, doing what the city's cars and helicopters do (the fire
+rover and spaceplane put out fires). Transport ships and armored transports come straight down onto the space
+airport's three pads, wait, and take off straight up; fighters do the same at the military airport. Each military
+port sends a battleship (as big as an aircraft carrier) flying round the map. A mineral mine keeps a mining drone on
+its pad: rocks with blue crystals float on the lava nearest to the mine, and the drone flies to one, breaks it up
+with its laser, carries the crystals home, lands, unloads and goes again. With no lava there are no rocks, and the
+drone stays on its pad.
+
+Against a monster in space: each military hangar sends a space tank (like a tank), the military airport its
+fighters (like fighter jets), each space turret fires one big laser bolt every 2 minutes that takes a fifth of the
+monster's full health (one zombie against zombies), and each battleship fires 5 rockets at a time like a carrier and
+sends 5 interceptors, which each fire a volley of 20 laser bolts (half a bullet's damage each) and fly back. Shots in
+space are blue laser bolts and rockets with blue flames, much faster than the city's, and they hit and explode in blue.
 
 The clock at the top left shows the time of day. A whole day takes 6 minutes: about 3½ minutes of day, a
 short orange evening, 1½ minutes of night and a pink morning. At night the city turns dark blue, building walls
@@ -168,7 +182,7 @@ in the build bar.
 | File | What's in it |
 |---|---|
 | `src/themes/city.js` | The city theme: menu icons, building names, doors, garages, helicopters, fires, docks, airport layout. |
-| `src/themes/space.js` | The space theme: menus, names, and how its map differs (no day and night, no rain, no rail, no tsunami). |
+| `src/themes/space.js` | The space theme: menus, names, vehicles, landing pads, and how its map differs (no day and night, no rain, no rail, no tsunami). |
 | `src/themes/catalog.js` | Turns the `assets/building-<theme>/` folders into the building list; `themeWorld` gives a theme's map settings. |
 | `src/art/space.js` | Code-drawn space art: moon rock, lava, white pavement, neon roads, astronauts, stars, the moon picture. |
 | `src/menu.js`, `src/saves.js` | Start menu and saved cities. |
@@ -176,6 +190,6 @@ in the build bar.
 | `src/data/art.js` | Art file counts and sprite-sheet frame sizes. |
 | `src/constants.js` | Square size, map size, zoom levels, speeds, lane offsets. |
 | `src/world/` | Map generation, world state, ground and road drawing, building drawing, effects, day and night (`DayNight.js`), weather (`Weather.js`). |
-| `src/agents/` | People, cars, patrols, fire trucks, helicopters and fires, planes, ships, disasters, path finding. |
+| `src/agents/` | People, cars, patrols, fire trucks, helicopters and fires, planes, ships, disasters, path finding. `Skyships.js`: space battleships and mining drones. |
 | `src/input/Controls.js` | Touch and mouse: tools, pan, pinch-zoom. |
 | `src/art/` | Pixel rasterizer and the code-drawn art (grass, sand, water, roads, people, cars, planes, ruined buildings). |

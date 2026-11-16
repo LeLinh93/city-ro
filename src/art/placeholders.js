@@ -451,7 +451,8 @@ export function genShadow(w = 200, h = 70) {
 }
 
 // A small flame (fires) and a water drop (fire fighting).
-export function genFlame() {
+// colors: [tip, middle, core] (the city's fire by default; blue for space)
+export function genFlame(colors = [0xf5541c, 0xff9d2b, 0xfff27a]) {
   const pix = new Pix(10, 14);
   for (let y = 0; y < 14; y++) {
     for (let x = 0; x < 10; x++) {
@@ -460,7 +461,7 @@ export function genFlame() {
       const half = Math.sin(Math.min(1, t * 1.15) * Math.PI * 0.62) * (t > 0.8 ? 1 - (t - 0.8) * 1.6 : 1);
       if (Math.abs(dx) > half) continue;
       const inner = Math.abs(dx) < half * 0.5 && t > 0.45;
-      pix.set(x, y, inner ? 0xfff27a : t < 0.35 ? 0xf5541c : 0xff9d2b);
+      pix.set(x, y, inner ? colors[2] : t < 0.35 ? colors[0] : colors[1]);
     }
   }
   return pix;

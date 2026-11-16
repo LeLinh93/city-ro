@@ -131,6 +131,7 @@ export class BootScene extends Phaser.Scene {
     if (!has('fx_dust')) addPix(this, 'fx_dust', genDust());
     addPix(this, 'fx_shadow', genShadow());
     if (!has('fx_flame')) addPix(this, 'fx_flame', genFlame());
+    addPix(this, 'fx_flame_blue', genFlame([0x1f6bff, 0x45b6ff, 0xe2f8ff])); // space: blue hits and explosions
     if (!has('fx_drop')) addPix(this, 'fx_drop', genDrop());
 
     for (const id of Object.keys(THEMES)) {

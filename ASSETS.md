@@ -201,6 +201,13 @@ Changing a width in `src/data/vehicles.js` and running `npm run art` again re-ma
 | `fighterjet-sheet.png`, `bomber-sheet.png`, `militaryhelicopter-sheet.png` | The military airport's two runways and its helipad. |
 | `destroyer-sheet.png`, `aircraftcarrier-sheet.png` | Ships of the military dock. |
 | `ustrain-`, `eurotrain-`, `bullettrain-engine-sheet.png` and `-wagon-sheet.png` | The trains of the US, EU and JP train stations (`train` in `src/themes/city.js`): an engine and two wagons. |
+| `space-hovercar-sheet.png` | Space: every car on the roads. |
+| `rover-sheet-police/fire/hospital.png`, `spaceplane-sheet-police/fire/hospital.png` | Space: the rovers of the police station, fire station and hospital, and the spaceplanes on their roofs. (`rover-sheet.png` and `spaceplane-sheet.png` are not used yet.) |
+| `transportship-sheet.png`, `armoredtransport-sheet.png` | Space: ships landing on the space airport's pads (`pads` in `src/themes/space.js`). |
+| `fighter3-sheet.png` | Space: the military airport's fighters. |
+| `space-tank-sheet.png` | Space: the military hangar's tank. |
+| `battleship-sheet.png`, `interceptor-sheet.png` | Space: the military port's battleship flying round the map, and its interceptors. |
+| `miningdrone-sheet.png` | Space: the mineral mine's drone. |
 | `rocket-1x1.png` | The rocket pad's rocket: one upright picture (not a 4-view sheet), made 32 px wide as `assets/vehicles/rocket-1x1.png`. It launches straight up from the middle of the pad's ring (`rocket` in `src/themes/city.js`). |
 
 Without these files the game falls back to simple code-drawn cars and planes.

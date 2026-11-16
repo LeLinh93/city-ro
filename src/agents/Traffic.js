@@ -33,8 +33,9 @@ export class Traffic {
     this.spawnTimer = 0;
     this.variants = scene.registry.get('variants').car; // code-drawn stand-ins
     this.carIds = CARS.filter((id) => hasVehicle(scene, id));
-    // space (src/themes/space.js): every car is a hover car, until the space cars are drawn
-    this.allHover = scene.look === 'space' && hasVehicle(scene, 'hovercar');
+    // space (src/themes/space.js): every car is a hover car, the space one (or the city's if it isn't there)
+    this.hoverId = scene.look === 'space' && hasVehicle(scene, 'space_hovercar') ? 'space_hovercar' : 'hovercar';
+    this.allHover = scene.look === 'space' && hasVehicle(scene, this.hoverId);
     // a ruined building counts as gone until it is repaired
     world.onBuilding((b) => {
       if (b.def.fuel) this.fuel.set(b.id, { b, used: b.def.fuel.spots.map(() => null) });
@@ -203,7 +204,7 @@ export class Traffic {
     if (k < 0) return null;
     const i = k % w.size;
     const j = (k / w.size) | 0;
-    const id = hover ? 'hovercar' : this.carIds.length ? pick(this.carIds) : null;
+    const id = hover ? this.hoverId : this.carIds.length ? pick(this.carIds) : null;
     const car = this.makeCar('civ', id, pick(this.variants), i + 0.5, j + 0.5, true, SPEED.car * rand(0.85, 1.15) * (hover ? 1.3 : 1));
     if (hover) {
       car.hover = true;

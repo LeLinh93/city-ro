@@ -8,6 +8,9 @@ import { Soldiers } from './Soldiers.js';
 // not for the UFO), tanks from the military bases, planes and the
 // helicopter from the military airport (and a jet from each aircraft carrier), rockets from the missile silos
 // and the warships. Every unit picks its own target when there is more than one monster.
+// In space (src/themes/space.js): space tanks from the military hangars, fighters from the military airport, a big
+// laser bolt from each space turret, and rockets and interceptors from the battleships (Skyships.js). Shots there
+// are blue laser bolts and blue-flamed rockets, much faster, and they hit in blue.
 //
 // A monster (`foe`) has:
 //   alive          it is there and can be shot
@@ -33,6 +36,15 @@ const SHOTS = {
   shell: { dmg: 5, speed: 650 }, // a tank's shot
   bomb: { dmg: 5, speed: 0, accel: 700 }, // falls, faster and faster
   rocket: { dmg: 10, speed: 520, boost: 600 }, // flies up first for `boost` ms, then towards the monster
+  bolt: { dmg: 0.5, speed: 950 }, // an interceptor's laser bolt
+  bigbolt: { part: 0.2, speed: 900 }, // a space turret's: a fifth of the monster's full health (one zombie)
+};
+const SPACE_FAST = 2.6; // in space shots fly this many times faster (rockets half as much more)
+
+// colours of shots, hits and explosions: the city's fire, and blue in space
+const LOOK = {
+  city: { spark: 'fx_flame', smoke: 0xd8d8d8, ring: 0xfff1c8, ball: [0xff5a1a, 0xffb030, 0xfff6d8], flash: [0xfff3c4, 0xff8a2a], flame: 0xff8a2a },
+  space: { spark: 'fx_flame_blue', smoke: 0xa9d4ff, ring: 0xd2f4ff, ball: [0x1f5cff, 0x3fb2ff, 0xe8fbff], flash: [0xdff6ff, 0x3f8cff], flame: 0x3fb6ff },
 };
 
 const TANK_RANGE = 9; // squares from the point under the monster
@@ -41,6 +53,8 @@ const SILO_RELOAD = 30000;
 const SHIP_RELOAD = 20000;
 const SHIP_SALVO = 5; // rockets a destroyer or carrier fires at a time
 const SHIP_TYPES = ['destroyer', 'aircraftcarrier'];
+const TURRET_RELOAD = 120000; // a space turret fires once every 2 minutes
+const INTERCEPTORS = 5; // each battleship sends this many
 const CARRIER_DECK = 22; // px from the carrier's waterline up to its flight deck
 const SORTIE_REST = 20000; // ms a plane or helicopter waits at home between attacks
 // salvo: what it fires on each attack, in order: [kind, how many, ms between them]
@@ -48,17 +62,23 @@ const PLANES = {
   fighterjet: { speed: 380, alt: ALT, salvo: [['bullet', 20, 90], ['rocket', 2, 350]] }, // a strafing run
   heli_military: { speed: 190, alt: ALT - 70, salvo: [['rocket', 4, 700]] }, // hovers beside it
   bomber: { speed: 210, alt: ALT + 190, salvo: [['bomb', 5, 260]] }, // drops bombs on it from above
+  fighter3: { speed: 380, alt: ALT, salvo: [['bullet', 20, 90], ['rocket', 2, 350]] }, // space: like the fighter jet
+  interceptor: { speed: 430, alt: ALT - 30, salvo: [['bolt', 20, 80]] }, // from a battleship: a volley and home
 };
+const CITY_PLANES = ['fighterjet', 'heli_military', 'bomber']; // a military airport's planes, unless it says (warplanes)
 const salvoSize = (c) => c.salvo.reduce((n, [, k]) => n + k, 0);
 
 export class Military {
-  constructor(scene, world, { services, traffic, ships, disasters }) {
+  constructor(scene, world, { services, traffic, ships, disasters, skyships }) {
     this.scene = scene;
     this.world = world;
     this.services = services;
     this.traffic = traffic;
     this.ships = ships;
+    this.skyships = skyships;
     this.disasters = disasters;
+    this.space = scene.look === 'space';
+    this.look = this.space ? LOOK.space : LOOK.city;
     this.foes = []; // every kind of monster; see `alive`
     this.shots = [];
     this.blasts = []; // rocket explosions, being drawn
@@ -67,12 +87,12 @@ export class Military {
     this.reload = new Map(); // silo id or ship -> time it can fire again
     this.engaged = false;
     this.g = scene.add.graphics().setDepth(DEPTH.AIR + 2000);
-    this.sparks = scene.add.particles(0, 0, 'fx_flame', {
+    this.sparks = scene.add.particles(0, 0, this.look.spark, {
       lifespan: { min: 300, max: 700 }, speed: { min: 40, max: 180 }, gravityY: 120,
       scale: { start: 1.6, end: 0.2 }, alpha: { start: 1, end: 0 }, emitting: false,
     }).setDepth(DEPTH.AIR + 2001);
     this.smoke = scene.add.particles(0, 0, 'fx_smoke', {
-      lifespan: { min: 600, max: 1200 }, speed: { min: 5, max: 25 }, tint: 0xd8d8d8,
+      lifespan: { min: 600, max: 1200 }, speed: { min: 5, max: 25 }, tint: this.look.smoke,
       scale: { start: 1, end: 3 }, alpha: { start: 0.6, end: 0 }, emitting: false,
     }).setDepth(DEPTH.AIR + 1999);
     this.soldiers = new Soldiers(scene, world, this);
@@ -227,8 +247,15 @@ export class Military {
     const live = (b) => w.buildings.has(b.id) && !b.ruined;
     for (const b of w.buildings.values()) {
       if (b.ruined) continue;
-      if (b.type === 'militarybase') this.tank(b, time);
-      else if (b.type === 'missilesilo') {
+      if (b.type === 'militarybase' || b.def.tank) this.tank(b, time);
+      else if (b.def.turret) {
+        // a space turret: one big laser bolt every 2 minutes (the first soon)
+        if (!this.reload.has(b.id)) this.reload.set(b.id, time + rand(1500, 4000));
+        if (time < this.reload.get(b.id)) continue;
+        const m = this.services.picturePoint(b, b.def.turret.px, b.def.turret.py);
+        this.fire('bigbolt', m, time, this.nearest(b.x + b.w / 2, b.y + b.d / 2));
+        this.reload.set(b.id, time + TURRET_RELOAD);
+      } else if (b.type === 'missilesilo') {
         if (time < (this.reload.get(b.id) ?? -Infinity)) continue;
         if (!this.reload.has(b.id)) {
           this.reload.set(b.id, time + rand(1500, 4000)); // the first one goes soon
@@ -238,7 +265,7 @@ export class Military {
         this.fire('rocket', { x: c.x, y: c.top + 30 }, time, this.nearest(b.x + b.w / 2, b.y + b.d / 2));
         this.reload.set(b.id, time + SILO_RELOAD);
       } else if (b.type === 'militaryairport') {
-        for (const plane of Object.keys(PLANES)) {
+        for (const plane of b.def.warplanes || CITY_PLANES) {
           const key = `${b.id}:${plane}`;
           if (!this.sorties.has(key) && hasVehicle(this.scene, plane)) this.sorties.set(key, this.newSortie(b, plane, time));
         }
@@ -272,6 +299,34 @@ export class Military {
         this.reload.set(s, time + SHIP_RELOAD);
       }
     }
+    // battleships flying round a space city: a salvo of rockets now and then, and their interceptors
+    for (const s of this.skyships?.ships || []) {
+      if (s.state !== 'fly') continue;
+      ships.add(s);
+      s.key ??= `fleet${Math.random().toString(36).slice(2)}`;
+      for (let k = 0; k < INTERCEPTORS; k++) {
+        const key = `${s.key}:${k}`;
+        if (!this.sorties.has(key) && hasVehicle(this.scene, 'interceptor')) {
+          const sortie = this.newSortie(s.b, 'interceptor', time, s);
+          sortie.until = time + 800 + k * 450; // one after another
+          this.sorties.set(key, sortie);
+        }
+      }
+      if (!this.reload.has(s)) {
+        this.reload.set(s, time + rand(2000, 6000));
+        continue;
+      }
+      if (time < this.reload.get(s)) continue;
+      const foe = this.nearest(s.x, s.y);
+      for (let k = 0; k < SHIP_SALVO; k++) {
+        this.scene.time.delayedCall(k * 180, () => {
+          if (!foe?.alive || s.gone) return;
+          const p = toWorld(s.x, s.y);
+          this.fire('rocket', { x: p.x + rand(-60, 60), y: p.y - s.alt - 30 + rand(-10, 10) }, this.scene.time.now, foe);
+        });
+      }
+      this.reload.set(s, time + SHIP_RELOAD);
+    }
     // planes of an airport that is gone don't go out again (and a carrier's jet doesn't once the carrier is gone)
     for (const s of this.sorties.values()) if (s.ship ? !ships.has(s.ship) : !live(s.b)) s.dead = true;
   }
@@ -285,7 +340,7 @@ export class Military {
     }
     if (!t.car || t.car.gone || t.car.leaving) {
       if (time < t.next) return;
-      t.car = this.traffic.leave('tank', b, 'tank', SPEED.police * 0.75);
+      t.car = this.traffic.leave('tank', b, b.def.tank || 'tank', SPEED.police * 0.75);
       t.next = time + 15000; // if it can't come out (no road) or is lost, try again later
       if (!t.car) return;
       t.car.mode = 'respond';
@@ -358,13 +413,21 @@ export class Military {
     return { b, ship, plane, cfg: PLANES[plane], state: 'rest', until: time + rand(1000, 5000), v: null };
   }
 
-  // Where a plane of this airport (or carrier) takes off and lands, in world px.
+  // Where a plane of this airport (or carrier, or battleship) takes off and lands, in world px (alt: how high
+  // that is, for a battleship in the air).
   home(s) {
     if (s.ship) {
       const p = toWorld(s.ship.x, s.ship.y);
+      if (s.ship.alt !== undefined) return { x: p.x, y: p.y, alt: s.ship.alt };
       return { x: p.x, y: p.y - CARRIER_DECK };
     }
     const b = s.b;
+    if (b.def.pads) {
+      // a space military airport: one of its landing pads
+      s.pad ??= Math.floor(Math.random() * b.def.pads.at.length);
+      const pad = b.def.pads.at[s.pad];
+      return this.services.picturePoint(b, pad.px, pad.py);
+    }
     const local = (lx, ly) => (b.rot ? toWorld(b.x + ly, b.y + lx) : toWorld(b.x + lx, b.y + ly));
     if (s.plane === 'heli_military' && b.def.heli) {
       const pad = this.services.picturePoint(b, b.def.heli.pad.px, b.def.heli.pad.py);
@@ -378,7 +441,7 @@ export class Military {
     const home = this.home(s);
     const v = vehicleSprite(this.scene, s.plane, null);
     Object.assign(s, {
-      v, shadow: vehicleShadow(this.scene, v), x: home.x, y: home.y, alt: 0, home, state: 'out',
+      v, shadow: vehicleShadow(this.scene, v), x: home.x, y: home.y, alt: home.alt || 0, home, state: 'out',
       fired: 0, nextShot: 0, pass: null, dir: [1, 0], foe: pick(this.live()), // each plane picks its own target
     });
     v.im.setAlpha(0);
@@ -469,8 +532,9 @@ export class Military {
       // home, coming down near the end (a carrier keeps sailing, so follow it)
       if (s.ship) s.home = this.home(s);
       const d = Math.hypot(s.home.x - s.x, s.home.y - s.y);
-      climb(d < 500 ? 0 : c.alt, 130);
-      if (toward(s.home, c.speed) && s.alt <= 0) {
+      const floor = s.home.alt || 0;
+      climb(d < 500 ? floor : Math.max(c.alt, floor), 130);
+      if (toward(s.home, c.speed) && s.alt <= floor) {
         // landed: gone into the hangar until the next attack
         s.state = 'rest';
         s.until = time + SORTIE_REST;
@@ -493,11 +557,12 @@ export class Military {
     if (!foe) return;
     const S = SHOTS[kind];
     const sp = foe.spread;
+    const fast = this.space ? (kind === 'rocket' ? SPACE_FAST / 2 : SPACE_FAST) : 1;
     // a crowd: the shot goes for one spot in it (see the top of this file)
     const mark = foe.mark ? foe.mark(kind) : null;
     if (foe.mark && !mark) return;
     this.shots.push({
-      kind, foe, mark, x: from.x, y: from.y, speed: S.speed, t0: time, boost: air ? 0 : S.boost || 0, trail: [],
+      kind, foe, mark, x: from.x, y: from.y, speed: S.speed * fast, t0: time, boost: air ? 0 : (S.boost || 0) / fast, trail: [],
       jitter: mark ? { x: 0, y: 0 } : { x: rand(-sp.x, sp.x), y: rand(-sp.y, sp.y) },
     });
   }
@@ -521,20 +586,23 @@ export class Military {
       const step = s.speed * dt;
       if (time - s.t0 >= s.boost && d <= Math.max(step, 18)) {
         // hit
-        if (s.kind === 'rocket') this.rocketBlast(tx, ty, time);
+        const small = s.kind === 'bullet' || s.kind === 'bolt';
+        if (s.kind === 'rocket' || s.kind === 'bigbolt') this.rocketBlast(tx, ty, time);
         else {
-          this.sparks.emitParticleAt(tx, ty, s.kind === 'bullet' ? 2 : 10);
-          if (s.kind !== 'bullet') this.smoke.emitParticleAt(tx, ty, 2);
+          this.sparks.emitParticleAt(tx, ty, small ? 2 : 10);
+          if (!small) this.smoke.emitParticleAt(tx, ty, 2);
         }
-        s.foe.hurt(S.dmg, time, s.kind, s.mark);
+        const dmg = S.part ? (s.foe.maxHp ? s.foe.maxHp * S.part : 1) : S.dmg;
+        s.foe.hurt(dmg, time, s.kind, s.mark);
         return false;
       }
       s.x += (dx / d) * step;
       s.y += (dy / d) * step;
       s.trail.push([s.x, s.y]);
       if (s.trail.length > 6) s.trail.shift();
-      if (s.kind === 'rocket' && Math.random() < 0.6) this.smoke.emitParticleAt(s.x, s.y, 1);
-      this.drawShot(g, s, dx / d, dy / d);
+      if (s.kind === 'rocket' && Math.random() < (this.space ? 0.3 : 0.6)) this.smoke.emitParticleAt(s.x, s.y, 1);
+      if (this.space) this.drawLaser(g, s, dx / d, dy / d);
+      else this.drawShot(g, s, dx / d, dy / d);
       return time - s.t0 < 12000;
     });
   }
@@ -560,6 +628,38 @@ export class Military {
     }
   }
 
+  // Space: laser bolts (a glow round a bright core), a plasma ball for the tank, and rockets with a blue flame.
+  drawLaser(g, s, ux, uy) {
+    const bolt = (len, glow, core, color) => {
+      g.lineStyle(glow, color, 0.35);
+      g.lineBetween(s.x - ux * len, s.y - uy * len, s.x, s.y);
+      g.lineStyle(core, 0xeafcff, 1);
+      g.lineBetween(s.x - ux * len * 0.9, s.y - uy * len * 0.9, s.x, s.y);
+    };
+    if (s.kind === 'bullet' || s.kind === 'bolt') bolt(30, 6, 2, 0x39b8ff);
+    else if (s.kind === 'bigbolt') {
+      bolt(90, 18, 6, 0x2f8bff);
+      g.fillStyle(0xbfeeff, 0.8);
+      g.fillCircle(s.x, s.y, 9);
+    } else if (s.kind === 'shell') {
+      g.fillStyle(0x3fa8ff, 0.45);
+      g.fillCircle(s.x, s.y, 9);
+      g.fillStyle(0xe6fbff, 1);
+      g.fillCircle(s.x, s.y, 4);
+    } else if (s.kind === 'bomb') {
+      g.fillStyle(0x2f3336, 1);
+      g.fillEllipse(s.x, s.y, 9, 16);
+    } else {
+      // rocket: a white body with a blue thruster flame
+      g.fillStyle(this.look.flame, 0.45);
+      g.fillCircle(s.x - ux * 14, s.y - uy * 14, 8);
+      g.fillStyle(0xd6f6ff, 0.95);
+      g.fillCircle(s.x - ux * 12, s.y - uy * 12, 4);
+      g.lineStyle(5, 0xf2f2f2, 1);
+      g.lineBetween(s.x - ux * 12, s.y - uy * 12, s.x + ux * 4, s.y + uy * 4);
+    }
+  }
+
   // A rocket hitting a monster: a fireball, a shock ring, lots of sparks and smoke, and a small shake.
   rocketBlast(x, y, time) {
     this.blasts.push({ x, y, t0: time });
@@ -576,14 +676,15 @@ export class Military {
       const grow = 1 - (1 - t) * (1 - t); // fast at first, then slower
       const fade = 1 - t;
       // shock ring racing outwards
-      g.lineStyle(6 * fade + 1, 0xfff1c8, 0.8 * fade);
+      const [outer, mid, core] = this.look.ball;
+      g.lineStyle(6 * fade + 1, this.look.ring, 0.8 * fade);
       g.strokeEllipse(b.x, b.y, 50 + 300 * grow, 25 + 150 * grow);
-      // the fireball: dark orange outside, yellow, then a white-hot middle that goes first
-      g.fillStyle(0xff5a1a, 0.75 * fade);
+      // the fireball: dark orange outside, yellow, then a white-hot middle that goes first (blue in space)
+      g.fillStyle(outer, 0.75 * fade);
       g.fillCircle(b.x, b.y, 28 + 84 * grow);
-      g.fillStyle(0xffb030, 0.9 * fade);
+      g.fillStyle(mid, 0.9 * fade);
       g.fillCircle(b.x, b.y, 20 + 58 * grow);
-      g.fillStyle(0xfff6d8, Math.max(0, 1 - t * 2.2));
+      g.fillStyle(core, Math.max(0, 1 - t * 2.2));
       g.fillCircle(b.x, b.y, 12 + 34 * grow);
       return true;
     });
@@ -609,9 +710,9 @@ export class Military {
     this.flashes = this.flashes.filter((f) => {
       const t = (time - f.t0) / 1200;
       if (t >= 1) return false;
-      g.fillStyle(0xfff3c4, 0.9 * (1 - t));
+      g.fillStyle(this.look.flash[0], 0.9 * (1 - t));
       g.fillCircle(f.x, f.y, 120 + 380 * t);
-      g.fillStyle(0xff8a2a, 0.7 * (1 - t));
+      g.fillStyle(this.look.flash[1], 0.7 * (1 - t));
       g.fillCircle(f.x, f.y, 80 + 220 * t);
       return true;
     });

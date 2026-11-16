@@ -56,6 +56,10 @@ export class Ufo {
     return this.screenPos();
   }
 
+  get maxHp() {
+    return HP;
+  }
+
   hurt(dmg) {
     const u = this.ufo;
     u.hp -= dmg;

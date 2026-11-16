@@ -57,6 +57,22 @@ export const VEHICLES = {
   train_eu_wagon: { sheet: 'eurotrain-wagon-sheet.png', width: 86 },
   train_jp_engine: { sheet: 'bullettrain-engine-sheet.png', width: 88 },
   train_jp_wagon: { sheet: 'bullettrain-wagon-sheet.png', width: 86 },
+  // space (src/themes/space.js): the hover cars on the roads, the police, fire and hospital rovers and spaceplanes,
+  // the space airport's ships (they land straight down on its pads), and the military's
+  space_hovercar: { sheet: 'space-hovercar-sheet.png', width: 56 },
+  rover_police: { sheet: 'rover-sheet-police.png', width: 64 },
+  rover_fire: { sheet: 'rover-sheet-fire.png', width: 64 },
+  rover_hospital: { sheet: 'rover-sheet-hospital.png', width: 64 },
+  spaceplane_police: { sheet: 'spaceplane-sheet-police.png', width: 100, ground: 'center' },
+  spaceplane_fire: { sheet: 'spaceplane-sheet-fire.png', width: 100, ground: 'center' },
+  spaceplane_hospital: { sheet: 'spaceplane-sheet-hospital.png', width: 100, ground: 'center' },
+  transportship: { sheet: 'transportship-sheet.png', width: 300, ground: 'center' },
+  armoredtransport: { sheet: 'armoredtransport-sheet.png', width: 290, ground: 'center' },
+  miningdrone: { sheet: 'miningdrone-sheet.png', width: 92, ground: 'center' },
+  space_tank: { sheet: 'space-tank-sheet.png', width: 70 },
+  fighter3: { sheet: 'fighter3-sheet.png', width: 150, ground: 'center' },
+  interceptor: { sheet: 'interceptor-sheet.png', width: 60, ground: 'center' },
+  battleship: { sheet: 'battleship-sheet.png', width: 440, ground: 'center' },
   // the UFO (a disaster): 6 squares wide
   ufo: { sheet: 'disaster/mothership-sheet.png', width: 768, ground: 'center' },
 };
