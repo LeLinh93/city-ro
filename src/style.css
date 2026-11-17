@@ -69,11 +69,38 @@ button {
   gap: 6px;
   padding: 8px;
   max-width: calc(100vw - 24px);
-  overflow-x: auto;
   background: var(--panel);
   border: 1px solid var(--panel-border);
   border-radius: 22px;
   box-shadow: var(--shadow);
+}
+
+/* Move and Remove stay put at the two ends; the buttons between them scroll sideways (see ui.js, buildBar) */
+.bar-end {
+  flex: 0 0 auto;
+  display: flex;
+}
+
+.bar-mid {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x; /* a swipe scrolls it (the rest of the page handles touches itself) */
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  border-left: 1px solid var(--panel-border);
+  border-right: 1px solid var(--panel-border);
+  padding: 0 4px;
+  /* fade the buttons out at the edges, so it shows there is more to scroll to */
+  mask-image: linear-gradient(to right, transparent 0, #000 10px, #000 calc(100% - 10px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 10px, #000 calc(100% - 10px), transparent 100%);
+}
+
+.bar-mid::-webkit-scrollbar {
+  display: none;
 }
 
 .tool {

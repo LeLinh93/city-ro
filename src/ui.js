@@ -252,14 +252,32 @@ export class UI {
     b.innerHTML = `<span class="icon">${icon}</span><span class="label"></span>`;
     b.querySelector('.label').textContent = label;
     b.addEventListener('click', onClick);
-    this.bar.appendChild(b);
+    (this.barPart || this.bar).appendChild(b);
     this.buttons.set(id, b);
   }
 
+  // The build bar: ✋ Move always at the start and 🚜 Remove always at the end; the buttons between them are in a
+  // strip that scrolls sideways when the screen is too narrow for them all.
   buildBar() {
     this.bar.textContent = '';
     this.buttons.clear();
+    const part = (cls) => {
+      const d = document.createElement('div');
+      d.className = cls;
+      this.bar.appendChild(d);
+      return d;
+    };
+    const start = part('bar-end');
+    const middle = part('bar-mid');
+    const end = part('bar-end');
+    middle.addEventListener('wheel', (e) => {
+      // a mouse wheel scrolls it sideways too
+      middle.scrollLeft += Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+      e.preventDefault();
+    }, { passive: false });
+    this.barPart = start;
     this.button('hand', '✋', 'Move', () => this.select('hand'));
+    this.barPart = middle;
     this.button('select', '🔳', 'Select', () => this.toggleTool('select'));
     this.button('road', '🛣️', 'Road', () => {
       const open = this.openMenu === 'road';
@@ -275,7 +293,9 @@ export class UI {
     }
     this.button('disaster', '⚡', 'Disaster', () => this.toggleMenu('disaster', this.disasters, false, HINTS.disaster));
     this.button('repair', '🔧', 'Repair', () => this.repair());
+    this.barPart = end;
     this.button('bulldoze', '🚜', 'Remove', () => this.toggleTool('bulldoze')); // always the last button
+    this.barPart = null;
   }
 
   // A building that waits for ✔ / ✖ when another button is pressed: built if its spot is fine, else dropped
