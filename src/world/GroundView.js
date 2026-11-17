@@ -2,7 +2,7 @@ import { DEPTH, GROUND, GROUND_NAMES, HW, HH, SIDES, SIDE_LIST } from '../consta
 import { toGrid, viewRect } from '../iso.js';
 import { genShores, SHORE_KINDS } from '../art/placeholders.js';
 import { addPix } from '../scenes/BootScene.js';
-import { genRail } from '../art/rails.js';
+import { genRail, genMagRail } from '../art/rails.js';
 
 // Draws only the squares that are on screen (ground, shore edges, roads),
 // reusing a pool of images. A 100 x 100 map would otherwise be ~15,000 images.
@@ -91,8 +91,8 @@ export class GroundView {
 
   // The picture of a railway square with rail neighbours mask (crossing: it lies across a road), made when first needed.
   railKey(mask, crossing) {
-    const key = `rail_${mask}${crossing ? 'x' : ''}`;
-    if (!this.scene.textures.exists(key)) addPix(this.scene, key, genRail(mask, crossing));
+    const key = `${this.space ? 'maglev' : 'rail'}_${mask}${crossing ? 'x' : ''}`; // space: a magnet rail
+    if (!this.scene.textures.exists(key)) addPix(this.scene, key, (this.space ? genMagRail : genRail)(mask, crossing));
     return key;
   }
 

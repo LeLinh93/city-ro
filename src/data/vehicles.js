@@ -51,15 +51,18 @@ export const VEHICLES = {
   // the hover car: some of the traffic flies once the city has a Future lab
   hovercar: { sheet: 'hovercar-sheet.png', width: 56 },
   // trains: an engine and its wagons, one kind for each kind of train station
-  train_us_engine: { sheet: 'ustrain-engine-sheet.png', width: 88 },
-  train_us_wagon: { sheet: 'ustrain-wagon-sheet.png', width: 86 },
-  train_eu_engine: { sheet: 'eurotrain-engine-sheet.png', width: 88 },
-  train_eu_wagon: { sheet: 'eurotrain-wagon-sheet.png', width: 86 },
-  train_jp_engine: { sheet: 'bullettrain-engine-sheet.png', width: 88 },
-  train_jp_wagon: { sheet: 'bullettrain-wagon-sheet.png', width: 86 },
+  train_us_engine: { sheet: 'ustrain-engine-sheet.png', width: 114 },
+  train_us_wagon: { sheet: 'ustrain-wagon-sheet.png', width: 112 },
+  train_eu_engine: { sheet: 'eurotrain-engine-sheet.png', width: 114 },
+  train_eu_wagon: { sheet: 'eurotrain-wagon-sheet.png', width: 112 },
+  train_jp_engine: { sheet: 'bullettrain-engine-sheet.png', width: 114 },
+  train_jp_wagon: { sheet: 'bullettrain-wagon-sheet.png', width: 112 },
+  train_moon_engine: { sheet: 'moontrain-engine-sheet.png', width: 114 }, // the space train station's
+  train_moon_wagon: { sheet: 'moontrain-wagon-sheet.png', width: 112 },
   // space (src/themes/space.js): the hover cars on the roads, the police, fire and hospital rovers and spaceplanes,
   // the space airport's ships (they land straight down on its pads), and the military's
   space_hovercar: { sheet: 'space-hovercar-sheet.png', width: 56 },
+  hovertaxi: { sheet: 'hovertaxi-sheet.png', width: 56 }, // the taxi depot's
   rover: { sheet: 'rover-sheet.png', width: 64 },
   rover_police: { sheet: 'rover-sheet-police.png', width: 64 },
   rover_fire: { sheet: 'rover-sheet-fire.png', width: 64 },

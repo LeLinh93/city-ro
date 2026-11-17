@@ -7,11 +7,12 @@
 //   beach     : false = no sand between the land and the lava on a new map
 //   dayNight  : false = always day: no clock, no night lights
 //   weather   : false = it never rains
-//   rail      : false = no railways in the Road menu
+//   rail      : false = no railways in the Road menu (space has them: magnet rails, src/art/rails.js genMagRail)
 //   disasters : the disasters in the Disaster menu that this theme doesn't have
 //
 // Vehicles: every car on the roads is a space hover car. The police, fire and hospital stations send rovers and
 // spaceplanes (like the city's cars and helicopters). Settings that only the space theme has:
+//   patrol.hover : the patrol flies over the road like the hover cars (the hover taxis)
 //   patrol.deliver : a menu (e.g. 'Production'): each trip drives to one of its buildings, stops there a moment
 //            and drives home; with none of them to reach, it drives around like any patrol (src/agents/Traffic.js)
 //   pads   : landing pads, [{ px, py }] in the picture's own pixels (the middle of each pad), and the ships that
@@ -33,7 +34,7 @@ export const SPACE = {
     beach: false,
     dayNight: false,
     weather: false,
-    rail: false,
+    rail: true,
     noDisasters: ['tsunami'],
   },
 
@@ -82,10 +83,30 @@ export const SPACE = {
     pizzashop: 'Pizza shop',
     souvenirstore: 'Souvenir store',
     spaceairport: 'Space airport',
+    taxidepot: 'Taxi depot',
+    trainstation: 'Train station',
+    parkinglot: 'Parking lot',
+    eiffeltower: 'Eiffel Tower',
+    generalstatue: 'General statue',
+    japaneseshrine: 'Japanese shrine',
+    japanesetemple: 'Japanese temple',
+    statueofliberty: 'Statue of Liberty',
+    cloningfacility: 'Cloning facility',
+    electricitygenerator: 'Electricity generator',
+    wasterecycling: 'Waste recycling',
+    rollercoaster: 'Roller coaster',
+    carseller: 'Car seller',
+    clothingstore: 'Clothing store',
+    megamall: 'Mega mall',
+    movietheater: 'Movie theater',
   },
 
   buildings: {
     mountain: { lights: false },
+    // hover taxis, like the city's taxi center (hover: they fly over the road like the hover cars, src/agents/Traffic.js)
+    taxidepot: { patrol: { vehicle: 'hovertaxi', count: 3, rest: [3000, 8000], speed: 1.1, hover: true } },
+    // moon trains on the magnet rails touching it, like the city's train stations (src/agents/Trains.js)
+    trainstation: { train: 'moon' },
     policestation: {
       patrol: { vehicle: 'rover_police', count: 2, rest: [4000, 9000] },
       heli: { vehicle: 'spaceplane_police', pad: { px: 162, py: 143 }, job: 'spotlight', rest: [25000, 50000] },

@@ -215,14 +215,19 @@ export class Traffic {
     const id = hover ? this.hoverId : this.carIds.length ? pick(this.carIds) : null;
     const car = this.makeCar('civ', id, pick(this.variants), i + 0.5, j + 0.5, true, SPEED.car * rand(0.85, 1.15) * (hover ? 1.3 : 1));
     if (hover) {
-      car.hover = true;
+      this.makeHover(car);
       car.asCar = asCar;
-      car.bob = Math.random() * Math.PI * 2;
-      car.shadow = vehicleShadow(this.scene, car.v);
     }
     car.cur = [i, j];
     car.heading = null;
     return car;
+  }
+
+  // A car that flies over the road (drawn up in the air with a shadow under it, see render).
+  makeHover(car) {
+    car.hover = true;
+    car.bob = Math.random() * Math.PI * 2;
+    car.shadow = vehicleShadow(this.scene, car.v);
   }
 
   // Where a building's vehicles come and go: its garage, or else its door.
@@ -283,6 +288,7 @@ export class Traffic {
     if (st.p.deliver && this.spawnDelivery(st, slot, id, speed)) return true;
     const car = this.leave('service', st.b, id, speed);
     if (!car) return false;
+    if (st.p.hover) this.makeHover(car); // the space taxis
     car.slot = st.slots.indexOf(slot);
     car.mode = 'patrol';
     car.steps = 0;

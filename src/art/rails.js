@@ -1,17 +1,17 @@
-// Railway squares, drawn by code: a bed of gravel a little more than half a square wide down the middle of the
+// Railway squares, drawn by code: a bed of gravel most of a square wide (0.84) down the middle of the
 // square with two tracks on it, one for each direction (trains keep to the right, like cars): wooden sleepers and
 // two steel rails each. A bend between two sides that meet in a corner is a
 // quarter circle round that corner. On a level crossing there is no gravel: the rails sit in a concrete deck.
 import { Pix, tileUV } from './raster.js';
 import { hash2 } from '../rng.js';
 
-export const TRACK = 0.155; // the middle of each track is this far from the middle of the bed, in squares
-const BED = 0.32; // half the width of the gravel bed (so the bed is 0.64 wide)
-const TIE = 0.11; // half the length of a sleeper
-const GAUGE = 0.06; // the rails are this far either side of the middle of their track
-const RAIL = 0.018; // half the width of a rail
-const TIE_EVERY = 0.2; // a sleeper every 0.2 squares
-const TIE_W = 0.075;
+export const TRACK = 0.2; // the middle of each track is this far from the middle of the bed, in squares
+const BED = 0.42; // half the width of the gravel bed (so the bed is 0.84 wide)
+const TIE = 0.14; // half the length of a sleeper
+const GAUGE = 0.077; // the rails are this far either side of the middle of their track
+const RAIL = 0.021; // half the width of a rail
+const TIE_EVERY = 0.22; // a sleeper every 0.22 squares
+const TIE_W = 0.085;
 
 // Where each side's track meets the edge of the square (u runs down-right, v down-left).
 const PORT = { ne: [0.5, 0], se: [1, 0.5], sw: [0.5, 1], nw: [0, 0.5] };
@@ -109,6 +109,40 @@ export function genRail(mask, crossing = false) {
         const c = edge ? (h < 0.5 ? 0x6e6a64 : 0x77736c) : h < 0.25 ? 0x8d8880 : h < 0.6 ? 0x9a958c : h < 0.85 ? 0xa7a297 : 0x7f7a72;
         pix.set(px, py, c);
       }
+    }
+  }
+  return pix;
+}
+
+// The space theme's railway (src/themes/space.js): a magnet rail. A smooth dark guideway in panels instead of gravel
+// and sleepers, and for each direction a raised metal beam with a glowing blue line along its middle. Same layout
+// of tracks as genRail, so the trains run on it the same way. On a level crossing only the beams show, set in the road.
+export function genMagRail(mask, crossing = false) {
+  const pix = new Pix(128, 64);
+  const pieces = railPieces(mask);
+  const co = [];
+  const BEAM = 0.09; // half the width of a beam
+  for (let py = 0; py < 64; py++) {
+    for (let px = 0; px < 128; px++) {
+      const [u, v] = tileUV(px, py);
+      if (u < 0 || u >= 1 || v < 0 || v >= 1) continue;
+      let bed = Infinity;
+      let beam = Infinity; // how far from the middle of the nearest beam
+      let joint = false;
+      for (const [d, t] of pieceCoords(pieces, u, v, co)) {
+        bed = Math.min(bed, Math.abs(d));
+        if (mod(t, 0.25) < 0.012) joint = true;
+        for (const side of [-1, 1]) beam = Math.min(beam, Math.abs(d - side * TRACK));
+      }
+      if (bed >= BED) continue;
+      if (beam < 0.013) pix.set(px, py, 0xd8f8ff); // the bright middle of the blue line
+      else if (beam < 0.026) pix.set(px, py, 0x4fd8ff);
+      else if (beam < BEAM - 0.014) pix.set(px, py, crossing ? 0x9aa3b1 : 0xc9d0da); // the beam's top
+      else if (beam < BEAM) pix.set(px, py, 0x7c8594); // its edge
+      else if (crossing) continue; // the road shows between the beams
+      else if (bed > BED - 0.035) pix.set(px, py, 0x8c94a3); // the guideway's light rim
+      else if (beam < BEAM + 0.03) pix.set(px, py, 0x4fd8ff, 70); // blue glow on the guideway beside the beam
+      else pix.set(px, py, joint ? 0x2e323b : 0x3a3f4a);
     }
   }
   return pix;

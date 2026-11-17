@@ -40,7 +40,9 @@ give the city a new name.
 The ground is moon rock with lava round it instead of water (lava works like water: nothing is built on it),
 and Plot paints moon rock, lava or white pavement. Roads have a blue neon strip and blue lights on the curbs,
 people wear astronaut helmets, and the sky is black with twinkling stars. It is always day: no clock, no
-night lights and no rain. There is no Rail and no Tsunami.
+night lights and no rain. There is no Tsunami. Rails are magnet rails: a dark guideway with a glowing blue
+line along each track; a space train station sends moon trains onto them like the city's stations. The taxi depot
+sends 3 hover taxis that fly over the roads like the city's taxis.
 
 Space vehicles: every car on the roads is a space hover car. The police station, hospital and fire station send
 rovers out on the roads and keep a spaceplane on the roof, doing what the city's cars and helicopters do (the fire
@@ -141,7 +143,7 @@ until 🔧 Repair. Ruins can't be moved, but 🚜 Remove clears them.
 What moves on its own:
 - People walk out of doors, use sidewalks (or cut across grass), and walk into other buildings.
 - Cars drive on the right-hand lane of every road and queue behind each other.
-- Rails are a double track (a little more than half a square wide) down the middle of the squares, curving round
+- Rails are a double track (most of a square wide) down the middle of the squares, curving round
   corners: one track for each direction. A train station (US, EU or JP, in Transport) next to the rails sends trains
   of its own kind onto that rail network: an engine and two wagons. Trains keep to the right-hand track (like cars),
   so trains going opposite ways pass each other. They stop at every station they pass, people get off and on, and
