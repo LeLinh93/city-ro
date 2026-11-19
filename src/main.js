@@ -96,10 +96,10 @@ const resize = () => {
 window.addEventListener('resize', resize);
 window.addEventListener('orientationchange', () => setTimeout(resize, 200));
 
-// Stop iPad Safari from zooming or scrolling the page itself (the city list may scroll).
+// Stop iPad Safari from zooming or scrolling the page itself (the menu's buttons and city list may scroll).
 document.addEventListener('gesturestart', (e) => e.preventDefault());
 document.addEventListener('touchmove', (e) => {
-  if (!e.target.closest?.('#city-list')) e.preventDefault();
+  if (!e.target.closest?.('#menu-panel')) e.preventDefault();
 }, { passive: false });
 document.addEventListener('dblclick', (e) => e.preventDefault());
 

@@ -5,8 +5,8 @@ import { KAIJU, KAIJU_FRAMES as F } from '../data/kaiju.js';
 import { assetUrl } from '../scenes/BootScene.js';
 import { healthBar } from './Military.js';
 
-// The kaiju: one at a time. It comes out of the sea at a beach (or in from the edge of the map if there is no
-// beach) and walks into the city, ruining whatever it steps on. Every few steps it stops and roars, and a thick
+// The kaiju: one at a time. It comes out of the sea (or the lava in space) where it meets the land near the city
+// (or in from the edge of the map if there is no water or lava) and walks into the city, ruining whatever it steps on. Every few steps it stops and roars, and a thick
 // blue beam from its mouth sweeps forward over the ground. Every 20 s a blue ring of energy goes out from it and
 // destroys every vehicle close by. The military (Military.js) fights it like the UFO. Like the UFO it doesn't lock
 // the build bar, and tapping it shows a 🗑️ button that takes it away.
@@ -100,7 +100,8 @@ export class Kaiju {
     return true;
   }
 
-  // A beach near the city: it comes out of the water just off it. Without a beach: the edge of the map.
+  // A shore near the city (land, beach or not, beside water or lava): it comes out of the water just off it.
+  // With no water or lava anywhere: the edge of the map.
   startPoint() {
     const w = this.world;
     const N = w.size;
@@ -110,7 +111,7 @@ export class Kaiju {
     const beaches = [];
     for (let j = 0; j < N; j++) {
       for (let i = 0; i < N; i++) {
-        if (w.ground[w.idx(i, j)] !== GROUND.SAND) continue;
+        if (w.ground[w.idx(i, j)] === GROUND.WATER) continue;
         for (const [di, dj] of Object.values(STEP)) {
           if (w.inBounds(i + di, j + dj) && w.ground[w.idx(i + di, j + dj)] === GROUND.WATER) {
             beaches.push({ x: i + 0.5 + di * 2, y: j + 0.5 + dj * 2, d: Math.hypot(i - cx, j - cy) });

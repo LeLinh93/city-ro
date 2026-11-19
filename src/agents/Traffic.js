@@ -69,7 +69,7 @@ export class Traffic {
   update(time, dt) {
     // (in space the cars are hover cars too: `asCar` counts them as cars, not as the Future lab's)
     const civ = this.cars.filter((c) => c.kind === 'civ' && !c.leaving && (!c.hover || c.asCar));
-    const hover = this.cars.filter((c) => c.hover && !c.asCar && !c.leaving);
+    const hover = this.cars.filter((c) => c.kind === 'civ' && c.hover && !c.asCar && !c.leaving); // the Future lab's (not the hover taxis)
     const wantHover = this.hoverTarget();
     // a lab just built (or the city just opened): a few hover cars at once
     for (; this.hoverNow > 0 && hover.length < wantHover; this.hoverNow--) {
