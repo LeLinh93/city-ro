@@ -171,6 +171,7 @@ What moves on its own:
 - Every few minutes a building near a fire station catches fire. The fire helicopter sprays water on it and
   the fire truck drives there (if a road connects them). Nothing burns down.
 - Planes land, taxi to a gate, wait, and take off again.
+- Ponyo (Decoration) can only be built on the sea; ships sail through it and the tsunami leaves it alone.
 - Docks can only be built touching water. Each sends its ship (container ship or cruise ship) out to sea
   and back.
 

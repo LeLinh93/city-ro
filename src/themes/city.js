@@ -23,6 +23,7 @@ export const CITY = {
 
   // Names shown under the pictures. Anything not listed is made from the file name.
   names: {
+    ponyo: 'Ponyo',
     parkbench: 'Park bench',
     parkfountain: 'Fountain',
     parkgazebo: 'Gazebo',
@@ -78,6 +79,7 @@ export const CITY = {
   // fire      : now and then a building within `radius` squares catches fire; the station sends its
   //             helicopter and its truck (`vehicle`). every = [min, max] ms between fires.
   // nearWater : can only be built touching water.   dock: the ship that sails from here.
+  // onWater   : can only be built on the sea (every square water); the tsunami leaves it alone.
   //
   // Night (see src/world/DayNight.js):
   // lights    : how the building is lit at night (src/art/floodlight.js). Default: its front walls painted with
@@ -91,6 +93,7 @@ export const CITY = {
   // glows     : lamps, [{ px, py, r, color }] in the picture's own pixels (r = size of the glow, default 16)
   // beacons   : blinking lights, [{ px, py, r, color }] in the picture's own pixels (red, r 8 by default)
   buildings: {
+    ponyo: { onWater: true, lights: false },
     police: {
       garage: { x: 1, y: 1, side: 'se' },
       patrol: { vehicle: 'police', count: 2, rest: [4000, 9000] },

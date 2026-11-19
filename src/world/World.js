@@ -106,10 +106,12 @@ export class World {
 
   // ---------- painting the ground ----------
 
-  // Water can't go under roads or buildings; anything else can go anywhere.
+  // Water can't go under roads or buildings, and only water under a building on the sea (onWater);
+  // anything else can go anywhere.
   canPaint(i, j, g) {
     if (!this.inBounds(i, j)) return false;
     const k = this.idx(i, j);
+    if (this.bldg[k] && this.buildings.get(this.bldg[k])?.def.onWater) return g === GROUND.WATER;
     return g !== GROUND.WATER || (!this.road[k] && !this.rail[k] && !this.bldg[k]);
   }
 
@@ -205,9 +207,10 @@ export class World {
 
   canPlaceBuilding(type, x, y, rot) {
     const f = this.footprint(type, rot);
+    const sea = BUILDINGS[type].onWater; // built on the sea instead of on land (Ponyo)
     for (let j = y; j < y + f.d; j++) {
       for (let i = x; i < x + f.w; i++) {
-        if (!this.inBounds(i, j) || this.isWater(i, j)) return false;
+        if (!this.inBounds(i, j) || this.isWater(i, j) !== !!sea) return false;
         const k = this.idx(i, j);
         if (this.road[k] || this.rail[k] || this.bldg[k]) return false;
       }

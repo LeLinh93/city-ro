@@ -374,7 +374,8 @@ class Tsunami {
         }
         const [i, j] = this.sq(s, along, l);
         if (this.height(lane) > 6) {
-          d.world.ruinBuilding(w.buildingAt(i, j));
+          const hit = w.buildingAt(i, j);
+          if (!hit?.def.onWater) d.world.ruinBuilding(hit); // Ponyo rides the wave
           for (const t of d.near(i + 0.5, j + 0.5, 0.8)) {
             const sprite = d.take(t);
             if (sprite) d.scene.tweens.add({ targets: sprite, alpha: 0, y: sprite.y + 20, duration: 700, onComplete: () => sprite.destroy() });
