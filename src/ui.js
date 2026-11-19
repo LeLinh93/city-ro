@@ -77,6 +77,7 @@ const isDeco = (id) => typeof id === 'string' && id.startsWith('deco:');
 
 const DRAG_START = 12; // px a finger must move before a menu item is dragged instead of tapped
 const HOLD_MS = 350; // pressing this long before moving always picks the building up (in any direction)
+const GHOST_MS = 800; // after a finger picks from a menu: how long the map ignores the tap's late mouse events
 const SWIPE_START = 8; // px a finger must move sideways on the build bar before it scrolls instead of tapping
 const CLOCK_HINTS = {
   auto: 'Day and night go round by themselves.',
@@ -554,7 +555,27 @@ export class UI {
       return;
     }
     if (cancelled || !e.target.closest || !e.target.closest('#submenu')) return; // finger slid off the menu
+    if (e.pointerType !== 'mouse') this.ignoreGhostTap();
     this.pick(d.def);
+  }
+
+  // A finger tap also sends mouse events (mousedown, mouseup, click) a moment after the finger lifts, to whatever
+  // is under it then. When the tap closed the menu (a disaster, the UFO, a building to place...), that is the map,
+  // which would take it as a tap of its own: picking up the building there, or aiming the meteor. For a moment
+  // after such a tap, mouse events on the map are thrown away (real taps on the map are touches, not mouse).
+  ignoreGhostTap() {
+    const until = performance.now() + GHOST_MS;
+    const types = ['mousedown', 'mouseup', 'click'];
+    const swallow = (ev) => {
+      if (performance.now() > until) return;
+      if (ev.target?.tagName !== 'CANVAS') return;
+      ev.stopPropagation();
+      ev.preventDefault();
+    };
+    for (const t of types) window.addEventListener(t, swallow, true);
+    setTimeout(() => {
+      for (const t of types) window.removeEventListener(t, swallow, true);
+    }, GHOST_MS);
   }
 
   // ---------- ✔ ✖ 🔄 above the building being placed ----------
