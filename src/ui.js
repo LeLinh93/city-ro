@@ -77,6 +77,7 @@ const isDeco = (id) => typeof id === 'string' && id.startsWith('deco:');
 
 const DRAG_START = 12; // px a finger must move before a menu item is dragged instead of tapped
 const HOLD_MS = 350; // pressing this long before moving always picks the building up (in any direction)
+const SWIPE_START = 8; // px a finger must move sideways on the build bar before it scrolls instead of tapping
 const CLOCK_HINTS = {
   auto: 'Day and night go round by themselves.',
   day: 'Always day.',
@@ -275,6 +276,39 @@ export class UI {
       middle.scrollLeft += Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
       e.preventDefault();
     }, { passive: false });
+    // A finger (or mouse) dragged sideways scrolls it; a button only counts as tapped if the finger didn't move.
+    // (Done here rather than by the browser: the page stops the browser's own touch scrolling, see main.js.)
+    let swipe = null;
+    let swiped = false;
+    middle.addEventListener('pointerdown', (e) => {
+      if (e.button > 0) return;
+      swipe = { id: e.pointerId, x0: e.clientX, left: middle.scrollLeft, moved: false };
+    });
+    middle.addEventListener('pointermove', (e) => {
+      if (!swipe || e.pointerId !== swipe.id) return;
+      const dx = e.clientX - swipe.x0;
+      if (!swipe.moved && Math.abs(dx) > SWIPE_START) {
+        swipe.moved = true;
+        swipe.x0 += Math.sign(dx) * SWIPE_START; // so the strip doesn't jump by the first few pixels
+        middle.setPointerCapture?.(e.pointerId);
+      }
+      if (swipe.moved) middle.scrollLeft = swipe.left - (e.clientX - swipe.x0);
+    });
+    const swipeEnd = (e) => {
+      if (!swipe || e.pointerId !== swipe.id) return;
+      if (swipe.moved) {
+        swiped = true; // swallow the click that may follow
+        setTimeout(() => (swiped = false), 0);
+      }
+      swipe = null;
+    };
+    middle.addEventListener('pointerup', swipeEnd);
+    middle.addEventListener('pointercancel', swipeEnd);
+    middle.addEventListener('click', (e) => {
+      if (!swiped) return;
+      e.stopPropagation();
+      e.preventDefault();
+    }, true);
     this.barPart = start;
     this.button('hand', '✋', 'Move', () => this.select('hand'));
     this.barPart = middle;

@@ -88,8 +88,7 @@ button {
   gap: 6px;
   overflow-x: auto;
   overscroll-behavior-x: contain;
-  touch-action: pan-x; /* a swipe scrolls it (the rest of the page handles touches itself) */
-  -webkit-overflow-scrolling: touch;
+  touch-action: none; /* sideways swipes are handled in ui.js (buildBar), like the submenu's */
   scrollbar-width: none;
   border-left: 1px solid var(--panel-border);
   border-right: 1px solid var(--panel-border);
